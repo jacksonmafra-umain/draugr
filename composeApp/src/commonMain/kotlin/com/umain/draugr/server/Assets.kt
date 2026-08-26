@@ -88,6 +88,20 @@ class FileAssetProvider(
     }
 }
 
+/** Serves content the app generates at runtime, such as a guest's TinyEMU config file. */
+class InMemoryAssetProvider : AssetProvider {
+    private val entries = mutableMapOf<String, ByteArray>()
+
+    fun put(path: String, bytes: ByteArray) {
+        entries[path] = bytes
+    }
+
+    override suspend fun open(path: String): AssetHandle? {
+        val bytes = entries[path] ?: return null
+        return MemoryAsset(bytes, contentTypeFor(path))
+    }
+}
+
 /**
  * Tries each provider in order. Guest images can come either from the app bundle or, once
  * sideloaded, from app storage, and the caller should not care which.

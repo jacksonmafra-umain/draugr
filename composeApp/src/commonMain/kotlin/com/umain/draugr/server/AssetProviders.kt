@@ -10,7 +10,17 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  * streamed by range and, in the sideload case, written by the user.
  */
 @OptIn(ExperimentalResourceApi::class)
-fun draugrAssetProvider(): AssetProvider {
+/** Generated files, written by the controller before a boot. */
+class GeneratedAssets {
+    internal val provider = InMemoryAssetProvider()
+
+    fun put(path: String, text: String) {
+        // The path here is server-relative, the same string the boot config points at.
+        provider.put(path.removePrefix("config/"), text.encodeToByteArray())
+    }
+}
+
+fun draugrAssetProvider(generated: GeneratedAssets = GeneratedAssets()): AssetProvider {
     val bundled = BundledAssetProvider { path ->
         if (!path.isSafeRelativePath()) {
             null
@@ -39,6 +49,7 @@ fun draugrAssetProvider(): AssetProvider {
             // Saved states are megabytes: the page fetches them over the loopback server
             // rather than having them handed across the JS bridge as one giant string.
             "snapshots" to FileAssetProvider(platformFileSystem, appStorageDir() / "snapshots"),
+            "config" to generated.provider,
             "" to bundled,
         ),
     )
