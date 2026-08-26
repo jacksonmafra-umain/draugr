@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ScancodesTest {
 
@@ -85,12 +86,45 @@ class ScancodesTest {
     }
 
     @Test
-    fun the_layout_covers_every_key_it_advertises() {
-        val all = KeyLayout.mainRows.flatten() + KeyLayout.arrows + KeyLayout.functionKeys
-        assertEquals(all.size, all.map { it.label }.toSet().size)
-        all.forEach { key ->
+    fun every_key_on_the_board_emits_a_well_formed_stroke_pair() {
+        KeyLayout.allKeys.forEach { key ->
             val strokes = key.strokes()
             assertEquals(if (key.extended) 4 else 2, strokes.size, key.label)
         }
+    }
+
+    @Test
+    fun no_row_exceeds_ten_columns_so_keys_stay_hittable() {
+        listOf(
+            KeyLayout.lettersTop,
+            KeyLayout.lettersHome,
+            KeyLayout.lettersBottom,
+            KeyLayout.symbolsTop,
+            KeyLayout.symbolsSecond,
+            KeyLayout.symbolsThird,
+        ).forEach { row ->
+            assertTrue(row.size <= 10, "row of ${row.size}: ${row.map { it.label }}")
+        }
+    }
+
+    @Test
+    fun the_letters_layer_is_a_qwerty_board() {
+        assertEquals("QWERTYUIOP", KeyLayout.lettersTop.joinToString("") { it.label })
+        assertEquals("ASDFGHJKL", KeyLayout.lettersHome.joinToString("") { it.label })
+        assertEquals("ZXCVBNM", KeyLayout.lettersBottom.joinToString("") { it.label })
+    }
+
+    @Test
+    fun labels_are_short_enough_never_to_wrap() {
+        KeyLayout.allKeys.forEach { key ->
+            assertTrue(key.label.length <= 5, key.label)
+        }
+    }
+
+    @Test
+    fun arrows_and_delete_are_extended_keys() {
+        val navigation = KeyLayout.symbolsThird.filter { it.label in setOf("<", ">", "^", "v", "DEL") }
+        assertEquals(5, navigation.size)
+        navigation.forEach { assertTrue(it.extended, it.label) }
     }
 }
