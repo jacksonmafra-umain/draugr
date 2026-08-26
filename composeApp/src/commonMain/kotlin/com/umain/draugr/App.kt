@@ -16,9 +16,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.umain.draugr.catalog.CatalogFilter
 import com.umain.draugr.catalog.CatalogRepository
 import com.umain.draugr.storage.SideloadStore
 import com.umain.draugr.catalog.MachineSpec
+import com.umain.draugr.platform.BackGuard
 import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
@@ -58,6 +60,8 @@ fun DraugrApp() {
     var machines by remember { mutableStateOf<List<MachineSpec>?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     var route by remember { mutableStateOf<Route>(Route.Catalog) }
+    var filter by remember { mutableStateOf(CatalogFilter.ALL) }
+    var introPlayed by remember { mutableStateOf(false) }
     val settingsStore = remember { SettingsStore() }
     var settings by remember { mutableStateOf(settingsStore.load()) }
 
@@ -65,6 +69,19 @@ fun DraugrApp() {
         runCatching { CatalogRepository(sideload = SideloadStore()).load() }
             .onSuccess { machines = it.machines }
             .onFailure { failure = it.message ?: "CATALOG UNREADABLE" }
+    }
+
+    // Back on the catalog is the only one that should close the app. Everywhere else it
+    // navigates, and inside a running machine it leaves the guest running.
+    BackGuard(enabled = route != Route.Catalog) {
+        route = when (val current = route) {
+            is Route.Detail -> Route.Catalog
+            is Route.Vm -> Route.Catalog
+            is Route.Snapshots -> Route.Vm(current.spec)
+            Route.SelfTest -> Route.Settings
+            Route.Settings -> Route.Catalog
+            Route.Catalog -> Route.Catalog
+        }
     }
 
     DraugrTheme(scanlinesEnabled = settings.scanlinesEnabled) {
@@ -96,6 +113,11 @@ fun DraugrApp() {
                         onBoot = { route = Route.Vm(it) },
                         onInspect = { route = Route.Detail(it) },
                         onSettings = { route = Route.Settings },
+                        runningIds = controllers.keys.toSet(),
+                        filter = filter,
+                        onFilterChange = { filter = it },
+                        playIntro = !introPlayed,
+                        onIntroPlayed = { introPlayed = true },
                     )
 
                     Route.SelfTest -> SelfTestScreen(onBack = { route = Route.Settings })
@@ -129,6 +151,7 @@ fun DraugrApp() {
                                 settings = settings.copy(terminalZoom = factor)
                                 settingsStore.save(settings)
                             },
+                            onLeave = { route = Route.Catalog },
                             onExit = {
                                 controllers.remove(current.spec.id)
                                 route = Route.Catalog
