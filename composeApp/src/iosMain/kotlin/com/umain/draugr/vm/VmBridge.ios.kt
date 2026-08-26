@@ -120,6 +120,17 @@ actual class VmBridge actual constructor() {
         return runCatching { Base64.decode(payload) }.getOrNull()
     }
 
+    /**
+     * WebContent died, almost always jetsam. The page is gone, so the guest is suspended and
+     * the screen can offer a restore instead of the app crashing.
+     */
+    internal fun onHostTerminated() {
+        ready.value = false
+        _events.tryEmit(
+            VmEvent.StateChanged(VmState.Suspended(SuspendReason.HOST_TERMINATED)),
+        )
+    }
+
     /** Forwarded to the guest so X11 reconfigures when the surface changes size. */
     suspend fun notifyResize(width: Int, height: Int) {
         evaluate("window.dispatchEvent(new CustomEvent('draugr-resize', { detail: { width: $width, height: $height } }));")
