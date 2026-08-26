@@ -120,6 +120,33 @@ open iosApp/iosApp.xcodeproj                 # iOS, or:
 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator build
 ```
 
+### Running on a physical iPhone
+
+```bash
+./iosApp/run-device.sh                 # first available paired device
+./iosApp/run-device.sh "Qa iPhone 13"  # by name fragment
+```
+
+Signing is the only hard part, and it is invisible until the first device build. Simulator builds
+need no team at all, so an empty `TEAM_ID` in `iosApp/Configuration/Config.xcconfig` goes
+unnoticed and then fails with `No Account for Team`. The team has to be one **Xcode has an
+account for** — a certificate sitting in the keychain is not enough. Check with:
+
+```bash
+security find-identity -v -p codesigning              # certificates present
+defaults read com.apple.dt.Xcode IDEProvisioningTeams  # accounts Xcode is signed into
+```
+
+`TEAM_ID` is set to a free personal team, which is fine for a local proof of concept: the app
+stops launching after seven days, and re-running the script signs it again. Override per machine
+with `xcodebuild ... DEVELOPMENT_TEAM=YOURTEAM`.
+
+The device must be unlocked, trusted, and have Developer Mode on
+(Settings → Privacy & Security → Developer Mode). `xcrun devicectl list devices` is the source of
+truth: a device shown as `unavailable` is paired but unreachable, which is what a dropped
+wireless pairing looks like. Note that the older `xcrun xctrace list devices` reports wirelessly
+paired devices under **Devices Offline** even when they are reachable, so trust `devicectl`.
+
 Toolchain: Gradle 9.7.1, Kotlin 2.4.10, Compose Multiplatform 1.12.0, AGP 9.3.2, JDK 17+,
 compileSdk 37, minSdk 26. Compose Multiplatform 1.12 no longer publishes `iosX64`, so the Intel
 simulator is out; device and Apple Silicon simulator only.
