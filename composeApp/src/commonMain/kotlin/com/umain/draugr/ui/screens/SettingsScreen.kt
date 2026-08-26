@@ -1,17 +1,30 @@
 package com.umain.draugr.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.host.hostWarning
 import com.umain.draugr.storage.Settings
@@ -19,6 +32,7 @@ import com.umain.draugr.ui.components.BracketPanel
 import com.umain.draugr.ui.components.GlitchText
 import com.umain.draugr.ui.components.PanelState
 import com.umain.draugr.ui.theme.AccentText
+import com.umain.draugr.ui.theme.BorderColor
 import com.umain.draugr.ui.theme.DangerText
 import com.umain.draugr.ui.theme.MutedText
 import com.umain.draugr.ui.theme.PrimaryText
@@ -108,14 +122,101 @@ fun SettingsScreen(
             )
         }
 
-        BracketPanel(header = "NETWORK", modifier = Modifier.fillMaxWidth()) {
+        NetworkPanel(
+            relayUrl = settings.networkRelayUrl,
+            onRelayUrlChange = { onSettingsChange(settings.copy(networkRelayUrl = it)) },
+        )
+    }
+}
+
+@Composable
+private fun NetworkPanel(
+    relayUrl: String,
+    onRelayUrlChange: (String) -> Unit,
+) {
+    var draft by remember(relayUrl) { mutableStateOf(relayUrl) }
+    val enabled = relayUrl.isNotBlank()
+
+    BracketPanel(
+        header = if (enabled) "NETWORK [RELAY ON]" else "NETWORK [OFFLINE]",
+        state = if (enabled) PanelState.ERROR else PanelState.IDLE,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = if (enabled) {
+                "GUEST TRAFFIC LEAVES THIS DEVICE THROUGH THE RELAY BELOW. THE APP IS NO LONGER " +
+                    "OFFLINE-ONLY WHILE THIS IS SET."
+            } else {
+                "THE APP MAKES NO OUTBOUND REQUESTS. GUESTS HAVE NO NETWORK. THE ONLY PEER IS " +
+                    "THE EMBEDDED SERVER ON 127.0.0.1."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) DangerText else MutedText,
+        )
+        Text(
+            text = "RELAY WEBSOCKET (ws:// OR wss://), BLANK FOR NONE:",
+            style = MaterialTheme.typography.labelSmall,
+            color = MutedText,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+        BasicTextField(
+            value = draft,
+            onValueChange = { draft = it.trim() },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = AccentText),
+            cursorBrush = SolidColor(AccentText),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { onRelayUrlChange(draft) }),
+            decorationBox = { inner ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, BorderColor)
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                ) {
+                    if (draft.isEmpty()) {
+                        Text(
+                            text = "ws://192.168.0.10:4555",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MutedText,
+                        )
+                    }
+                    inner()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             Text(
-                text = "THIS APP MAKES NO OUTBOUND REQUESTS. THE ONLY PEER IS THE EMBEDDED " +
-                    "SERVER ON 127.0.0.1.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MutedText,
+                text = ">> APPLY",
+                style = MaterialTheme.typography.titleMedium,
+                color = AccentText,
+                modifier = Modifier.clickable { onRelayUrlChange(draft) },
             )
+            if (enabled) {
+                Text(
+                    text = ">> GO OFFLINE",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DangerText,
+                    modifier = Modifier.clickable {
+                        draft = ""
+                        onRelayUrlChange("")
+                    },
+                )
+            }
         }
+        Text(
+            text = "APPLIES TO THE NEXT BOOT. RUN tools/network-relay.mjs ON YOUR MACHINE.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MutedText,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

@@ -12,7 +12,15 @@ data class Settings(
     val bootLogExpandedByDefault: Boolean = true,
     /** Multiplier over the fit-to-width scale of a text guest. 1.0 shows all 80 columns. */
     val terminalZoom: Float = 1f,
-)
+    /**
+     * WebSocket relay for guest networking. Empty means the guest has no network at all, which
+     * is the default and keeps the app making no outbound requests. A non-empty ws:// or wss://
+     * URL routes guest traffic through that relay, and the app is then no longer offline-only.
+     */
+    val networkRelayUrl: String = "",
+) {
+    val networkEnabled: Boolean get() = networkRelayUrl.isNotBlank()
+}
 
 /** The cycle the machine screen steps through. Fit first, then progressively larger glyphs. */
 val TERMINAL_ZOOM_STEPS = listOf(1f, 1.25f, 1.5f, 2f, 3f)
