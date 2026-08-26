@@ -9,6 +9,19 @@ web view.
 
 **Proof of concept. Local only. Not for store distribution.**
 
+| Catalog | Machine | Snapshots | Settings |
+|---|---|---|---|
+| ![Catalog](docs/screenshots/android-catalog.png) | ![FreeDOS running](docs/screenshots/android-machine.png) | ![Saved states](docs/screenshots/android-snapshots.png) | ![Settings](docs/screenshots/android-settings.png) |
+
+Android above, a Galaxy A34 running FreeDOS through v86. The same build on iOS:
+
+| Catalog | Machine |
+|---|---|
+| ![Catalog on iOS](docs/screenshots/ios-catalog.png) | ![FreeDOS running on iOS](docs/screenshots/ios-machine.png) |
+
+Note the instruction rate in the two machine shots: **17.1M** on Android against **63.7M** on
+iOS. That gap is the reason the whole architecture exists — see below.
+
 ## Why it is built this way
 
 The app cannot emulate anything itself.
@@ -42,6 +55,31 @@ So: **the emulator is a WASM payload, the web view is the CPU host, and Compose 
    └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Using it
+
+Tap a catalog row to inspect a machine, `>> BOOT` to start it. Inside a machine:
+
+| Control | Does |
+|---|---|
+| `< MENU` | back to the catalog with the guest **still running** |
+| `KEYS` | show or hide the keyboard |
+| `PAUSE` | stop and resume the guest |
+| `ZOOM 1.0X` | cycle the terminal scale: 1.0 fits all 80 columns, larger grows the glyphs and pans |
+| `SNAP` / `STATES` | take a snapshot, or open the saved-state list |
+| `RESET` | boot the machine again |
+| `HALT` | stop the machine for good |
+
+A machine left running shows in the catalog as `RUNNING`, with `>> RESUME` instead of `>> BOOT`.
+Android's back button follows the same rule: it navigates, and only leaves the app from the
+catalog.
+
+The keyboard is the app's own, because the system IME is unusable over a web view canvas on iOS.
+It emits scancodes, never text. Letters, `SHIFT` and `BSP` sit on the first layer; `?123` reveals
+numbers, symbols, arrows and `F1`–`F12`. `CTRL` and `ALT` latch, since a terminal needs them held
+across keys; `SHIFT` releases after one character, the way a phone's does.
+
+Tapping the catalog header opens settings, which is also where `HOST SELF TEST` lives.
+
 ## The embedded server, and why `file://` cannot work
 
 `AssetServer` runs Ktor CIO on `127.0.0.1` with an ephemeral port, mounted under a random
@@ -57,6 +95,19 @@ cannot be replaced with `file://`:
 Every response carries the three isolation headers plus `Accept-Ranges: bytes`. Range handling
 is written out rather than delegated: single `bytes=` spans, open-ended and suffix forms, `206`
 with a correct `Content-Range`, `416` with `bytes */size` when unsatisfiable.
+
+### Speed
+
+WebKit JITs WebAssembly, and it shows. FreeDOS on the same build and the same guest image:
+
+| Host | Instructions per second |
+|---|---|
+| iPhone 15 simulator, iOS 17 | 63–65M |
+| Pixel 6 Pro emulator, API 36 | 12–51M, depending on host load |
+| Galaxy A34, Android 16 | 16–17M |
+
+`FETCHED` beside it in the HUD is the bytes actually pulled over the loopback server, counted in
+the page so it stays honest whichever engine is running.
 
 ### Cross-origin isolation in practice
 
@@ -175,20 +226,24 @@ while backgrounded. What the app does about it:
 | Boot log silent, screen black | image missing or a 404 | Run `emulator/fetch-images.sh`; check the log for the failing URL |
 | `SocketException: Operation not permitted` | `INTERNET` permission missing | Already declared; check a stripped manifest in a fork |
 | Guest text clipped after rotation | the page refits through a `ResizeObserver` | If it persists, rotate again or reopen the machine |
+| Guest text too small to read | 80 columns fitted to a phone's width | `ZOOM` cycles up to 3x and pans; landscape also helps |
+| Device build fails with `No Account for Team` | `TEAM_ID` names a team Xcode has no account for | See *Running on a physical iPhone* |
+| `xcrun xctrace` lists a connected iPhone as offline | it reports wireless pairings that way | Trust `xcrun devicectl list devices` |
 
 ## Layout
 
 ```
 composeApp/src/commonMain/kotlin/com/umain/draugr/
-├── catalog/    MachineSpec, CatalogRepository, filters
+├── catalog/    MachineSpec, CatalogRepository, filters, sideload merging
 ├── vm/         VmController, VmState/VmEvent, VmBridge (expect), BridgeProtocol, TinyEmuConfig
 ├── server/     AssetServer (expect), routing, Range handling, asset providers
-├── storage/    SnapshotStore, SideloadStore, SettingsStore, platform roots (expect)
-├── input/      PC scancodes and Linux keycodes
-├── platform/   HostLifecycle (expect), platform memory ceiling
+├── storage/    SnapshotStore, SideloadStore, SettingsStore, image picker (expect), roots (expect)
+├── input/      PC scancodes, Linux keycodes, the two keyboard layers
+├── platform/   HostLifecycle (expect), BackGuard (expect), platform memory ceiling
 └── ui/         theme, components, screens
-composeApp/src/androidMain/   WebView + @JavascriptInterface, activity lifecycle
-composeApp/src/iosMain/       WKWebView + WKScriptMessageHandler, notification lifecycle
+composeApp/src/androidMain/   WebView + @JavascriptInterface, activity lifecycle, SAF picker
+composeApp/src/iosMain/       WKWebView + WKScriptMessageHandler, notification lifecycle, document picker
 emulator/                     vendor and build scripts, BUILDING.md, checksums
-iosApp/                       Xcode project
+iosApp/                       Xcode project and run-device.sh
+docs/screenshots/             the images above
 ```
