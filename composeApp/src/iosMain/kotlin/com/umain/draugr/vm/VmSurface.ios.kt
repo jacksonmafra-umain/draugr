@@ -66,7 +66,9 @@ actual fun VmSurface(bridge: VmBridge, modifier: Modifier) {
             WKWebView(frame = cValue<CGRect>(), configuration = configuration).apply {
                 opaque = false
                 navigationDelegate = watcher
-                scrollView.scrollEnabled = false
+                // Scrolling stays on so a zoomed guest can be panned; bouncing does not,
+                // because rubber-banding a terminal feels broken.
+                scrollView.scrollEnabled = true
                 scrollView.bounces = false
                 bridge.attach(this)
                 loadRequest(NSURLRequest.requestWithURL(NSURL(string = "$url/host.html")))

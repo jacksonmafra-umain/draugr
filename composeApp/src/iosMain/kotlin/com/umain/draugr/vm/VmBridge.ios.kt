@@ -121,6 +121,9 @@ actual class VmBridge actual constructor() {
 
     actual suspend fun sendText(text: String) = evaluate(BridgeProtocol.sendTextCall(text))
 
+    actual suspend fun setTextZoom(factor: Float) =
+        evaluate("window.DRAUGR.setTextZoom($factor);")
+
     actual suspend fun pause() = evaluate("window.DRAUGR.pause();")
 
     actual suspend fun resume() = evaluate("window.DRAUGR.resume();")
