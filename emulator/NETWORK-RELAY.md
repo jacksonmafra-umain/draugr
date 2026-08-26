@@ -44,14 +44,16 @@ no network.
 - The relay script runs, completes the WebSocket handshake, and logs guest frames. Verified.
 - The app persists the relay URL, shows the on/offline state, and threads the URL into the v86
   boot config. Verified on a Galaxy A34.
-- A guest actually routing traffic through the relay to the internet is **not** verified
-  end to end, because it needs a guest that boots to a shell, and the large x86 guest that
-  carries networking tools does not yet boot on the device tested — see `SECURITY-IMAGE.md`.
-  FreeDOS boots but has no TCP/IP stack to drive the NIC.
+- A guest actually routing traffic through the relay to a real network is **not** verified end
+  to end. The security console now boots to Alpine userspace on-device (see `SECURITY-IMAGE.md`),
+  but confirming DHCP and an outbound scan through the relay needs an uninterrupted run against a
+  relay that does real routing — the shipped relay logs frames rather than NATs them. FreeDOS
+  boots but has no TCP/IP stack to drive the NIC.
 
-So the honest state: the plumbing is built and each piece is tested in isolation; a live scan
-from a phone through the relay awaits the guest-boot memory work in `SECURITY-IMAGE.md`, or a
-desktop browser where the larger guest boots today.
+So the honest state: every piece is built and tested in isolation — the relay handshake, the
+settings wiring, and now a guest that boots far enough to bring up a NIC. A full live scan is the
+remaining step, and it wants the routing relay (v86's websockproxy) and a run that is not
+interrupted by the test phone being picked up.
 
 ## Only what you are authorised to reach
 

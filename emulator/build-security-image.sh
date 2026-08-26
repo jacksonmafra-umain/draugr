@@ -56,7 +56,7 @@ docker run --rm --platform linux/386 \
   -v "$out:/out" \
   alpine:"$ALPINE_VERSION" \
   sh -euc '
-    apk add --no-cache e2fsprogs mkinitfs >/dev/null
+    apk add --no-cache e2fsprogs cpio kmod gzip >/dev/null
 
     ROOT=/rootfs
     mkdir -p "$ROOT/etc/apk"
@@ -130,14 +130,75 @@ MOTD
     kernel_version="$(ls "$ROOT"/lib/modules | head -1)"
     echo ">> kernel $kernel_version"
 
-    # v86 presents an IDE disk and an NE2000, so the initramfs needs ata, ext4 and the
-    # network driver to find root. The stock feature set also pulls in /lib/firmware, which
-    # makes this ~85MB; that is large enough that it only loads beside a >=256MB guest, and v86
-    # in a mobile web view cannot allocate a single buffer that big. See SECURITY-IMAGE.md for
-    # where that leaves on-device boot, and for the desktop path that does reach a shell.
-    mkinitfs -b "$ROOT" -F "base ide scsi ata ext4 keymap kms" \
-      -o /out/initramfs-lts "$kernel_version"
+    # A hand-rolled initramfs, not mkinitfs. mkinitfs bundles /lib/firmware and the whole base
+    # module set (~85MB), which only loads beside a >=256MB guest — and v86 in a mobile web view
+    # cannot allocate a single buffer that big. This carries busybox plus exactly the modules v86
+    # needs to expose its IDE disk as ext4, and a tiny init that mounts root and switch_roots.
+    # The result is a few MB, small enough to boot beside a 128MB guest.
+    # Explicit mkdir, not brace expansion: the container shell is busybox ash under `sh -euc`,
+    # which does not expand {a,b}, so a braced path would create one literally-named directory
+    # and the next cp would fail the whole build under set -e.
+    IRD=/tmp/initramfs
+    rm -rf "$IRD"
+    mkdir -p "$IRD/bin" "$IRD/sbin" "$IRD/dev" "$IRD/proc" "$IRD/sys" \
+      "$IRD/newroot" "$IRD/lib/modules"
+
+    cp "$ROOT/bin/busybox" "$IRD/bin/busybox"
+    for applet in sh mount umount switch_root modprobe insmod mknod mkdir sleep echo cat ls; do
+      ln -sf busybox "$IRD/bin/$applet"
+    done
+    ln -sf ../bin/busybox "$IRD/sbin/modprobe"
+
+    # Alpine busybox is dynamically linked against musl. Without the loader and libc the kernel
+    # cannot exec /init at all (Failed to execute /init (error -2)), so copy them in.
+    mkdir -p "$IRD/lib"
+    for lib in "$ROOT"/lib/ld-musl-*.so.* "$ROOT"/lib/libc.musl-*.so.*; do
+      [ -e "$lib" ] && cp -a "$lib" "$IRD/lib/"
+    done
+
+    # Copy only the driver subtrees that matter, with modules.* so modprobe can resolve deps.
+    md="$ROOT/lib/modules/$kernel_version"
+    mkdir -p "$IRD/lib/modules/$kernel_version"
+    for sub in kernel/drivers/ata kernel/drivers/scsi kernel/block \
+               kernel/fs/ext4 kernel/fs/jbd2 kernel/fs/mbcache.ko* kernel/lib/crc16.ko* \
+               kernel/lib/crc32c* kernel/crypto; do
+      for path in $md/$sub; do
+        [ -e "$path" ] || continue
+        dest="$IRD/lib/modules/$kernel_version/${path#$md/}"
+        mkdir -p "$(dirname "$dest")"
+        cp -a "$path" "$dest" 2>/dev/null || true
+      done
+    done
+    cp "$md/modules.order" "$IRD/lib/modules/$kernel_version/" 2>/dev/null || true
+    for f in "$md"/modules.builtin*; do
+      [ -e "$f" ] && cp "$f" "$IRD/lib/modules/$kernel_version/" 2>/dev/null || true
+    done
+    depmod -b "$IRD" "$kernel_version" 2>/dev/null || true
+
+    cat > "$IRD/init" <<INIT
+#!/bin/sh
+/bin/mount -t proc proc /proc
+/bin/mount -t sysfs sys /sys
+/bin/mount -t devtmpfs dev /dev 2>/dev/null
+echo "draugr initramfs: loading storage drivers"
+for m in libata ata_piix ata_generic pata_legacy sd_mod mbcache jbd2 crc32c_generic ext4; do
+  /sbin/modprobe \$m 2>/dev/null || /bin/modprobe \$m 2>/dev/null
+done
+/bin/sleep 1
+echo "draugr initramfs: mounting /dev/sda"
+if /bin/mount -t ext4 -o ro /dev/sda /newroot 2>/dev/null || /bin/mount /dev/sda /newroot 2>/dev/null; then
+  /bin/mount -o remount,rw /newroot 2>/dev/null
+  echo "draugr initramfs: switch_root"
+  exec /bin/switch_root /newroot /sbin/init
+fi
+echo "draugr initramfs: FAILED to mount /dev/sda, dropping to shell"
+exec /bin/sh
+INIT
+    chmod +x "$IRD/init"
+
+    ( cd "$IRD" && find . | cpio -o -H newc 2>/dev/null | gzip -9 > /out/initramfs-lts )
     cp "$ROOT/boot/vmlinuz-lts" /out/vmlinuz-lts
+    echo ">> initramfs $(( $(stat -c %s /out/initramfs-lts) / 1048576 ))MB (hand-rolled)"
 
     # -d populates the filesystem from a directory, so no loop mount and no privileged
     # container is needed.

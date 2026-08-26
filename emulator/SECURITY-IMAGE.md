@@ -47,26 +47,25 @@ sideload path is for. The catalog entry `alpine-x86-security` stays dimmed until
 are present, then it lights up as bootable. On iOS, drop the same three files under
 `Documents/draugr/sideload/alpine-x86-security/` through the Files app or iTunes File Sharing.
 
-## Where this actually runs
+## Where this runs, and the memory ceiling
 
-This is the honest part. The image builds correctly — every tool above is present in the rootfs,
-verified with `debugfs` — and the sideload promotion works: the catalog row goes bootable once
-the files land. **But it does not yet reach a shell inside v86 on the phone tested** (Galaxy
-A34), and the reason is a v86 memory limit in a mobile WebView, not the image:
+The image boots. On the phone tested (Galaxy A34) the guest reaches Alpine userspace: the kernel
+loads, a small hand-rolled initramfs brings up the ata + ext4 drivers, mounts `/dev/sda`,
+`switch_root`s into the rootfs, and OpenRC starts. Verified from the serial log.
 
-| Guest RAM | Result on the device |
+Two things had to be right, and both were the reason earlier attempts failed:
+
+| Problem | Fix |
 |---|---|
-| 512MB, 256MB | v86 fails to allocate the guest memory: `RangeError: Invalid typed array length`. A single ArrayBuffer that large is refused by this WebView. |
-| 128MB | Memory allocates, but Alpine's stock initramfs is ~85MB (it bundles `/lib/firmware` and the whole base module set) and overflows the guest: `offset is out of bounds`. |
+| v86 could not allocate the guest RAM: `RangeError: Invalid typed array length` at 256MB and above. A mobile WebView refuses a single ArrayBuffer that large. | The machine runs at **128MB**, the largest single buffer this WebView reliably allocates. |
+| Alpine's stock `mkinitfs` initramfs is ~85MB — it bundles `/lib/firmware` and the whole base module set — and overflowed the 128MB guest. | A **hand-rolled ~5MB initramfs**: busybox, the musl loader, and only the ata/scsi/ext4 modules, with an init that mounts root and `switch_root`s. The musl loader matters — without it the kernel cannot even exec `/init` (`error -2`). |
 
-So the path to a working shell on-device is a **slim initramfs** — ata + ext4 only, no
-firmware — small enough to load beside a 128MB guest. Getting `mkinitfs` down to a few MB was
-not completed here; the build currently produces the stock ~85MB initramfs.
+The 128MB ceiling is a property of v86 in a mobile WebView, not of this image, and it also
+constrains the existing 512MB `alpine-x86-x11` and `reactos` catalog entries. On a desktop
+browser, where a 256MB+ buffer allocates, the guest has more room.
 
-On the **desktop** (a normal browser tab serving the same three files, or a 256MB+ v86 on a
-machine that allocates it) the guest boots to a shell normally. FreeDOS at 64MB and the other
-small guests are unaffected — this ceiling only bites the larger x86 guests, which includes the
-existing `alpine-x86-x11` (512MB) and `reactos` (512MB) catalog entries.
+The `Invalid ELF header magic` lines in the boot log are cosmetic: the kernel probes a few
+non-ELF files while loading modules and moves on.
 
 ## Networking
 
