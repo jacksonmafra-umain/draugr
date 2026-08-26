@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.catalog.formatBytes
@@ -182,9 +183,23 @@ fun MachineDetailScreen(
 private fun SpecRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MutedText)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, color = PrimaryText)
+        // A long asset path used to run straight into its label. The label keeps its width, the
+        // value takes the rest and wraps right-aligned inside it.
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MutedText,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = PrimaryText,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
