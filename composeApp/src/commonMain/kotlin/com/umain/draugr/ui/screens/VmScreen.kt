@@ -40,6 +40,7 @@ import com.umain.draugr.ui.theme.DangerText
 import com.umain.draugr.ui.theme.MutedText
 import com.umain.draugr.ui.theme.PrimaryText
 import com.umain.draugr.vm.VmController
+import com.umain.draugr.vm.SuspendReason
 import com.umain.draugr.vm.VmState
 import com.umain.draugr.vm.VmSurface
 import com.umain.draugr.vm.isLive
@@ -51,6 +52,7 @@ fun VmScreen(
     spec: MachineSpec,
     controller: VmController,
     onSnapshot: () -> Unit,
+    onRestore: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -127,6 +129,31 @@ fun VmScreen(
                 bridge = controller.bridge,
                 modifier = Modifier.aspectRatio(geometry.aspectRatio ?: TEXT_MODE_RATIO),
             )
+        }
+
+        val suspended = state as? VmState.Suspended
+        if (suspended?.reason == SuspendReason.HOST_TERMINATED) {
+            BracketPanel(
+                header = "HOST TERMINATED",
+                state = PanelState.ERROR,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            ) {
+                Text(
+                    text = "THE WEB CONTENT PROCESS WAS KILLED, ALMOST CERTAINLY BY JETSAM.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = DangerText,
+                )
+                Text(
+                    text = if (controller.canRestore) ">> RESTORE FROM SNAPSHOT" else ">> RESET",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AccentText,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .clickable {
+                            if (controller.canRestore) onRestore() else controller.reset()
+                        },
+                )
+            }
         }
 
         BracketPanel(

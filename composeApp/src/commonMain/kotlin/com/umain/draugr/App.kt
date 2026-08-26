@@ -24,6 +24,7 @@ import com.umain.draugr.ui.screens.MachineDetailScreen
 import com.umain.draugr.ui.screens.SelfTestScreen
 import com.umain.draugr.ui.screens.VmScreen
 import com.umain.draugr.vm.VmController
+import kotlinx.coroutines.launch
 import com.umain.draugr.ui.theme.DangerText
 import com.umain.draugr.ui.theme.DraugrTheme
 import com.umain.draugr.ui.theme.MutedText
@@ -89,7 +90,8 @@ fun DraugrApp() {
                         VmScreen(
                             spec = current.spec,
                             controller = controller,
-                            onSnapshot = {},
+                            onSnapshot = { scope.launch { runCatching { controller.snapshotNow() } } },
+                            onRestore = { scope.launch { controller.restoreLastSnapshot() } },
                             onExit = { route = Route.Catalog },
                         )
                     }
