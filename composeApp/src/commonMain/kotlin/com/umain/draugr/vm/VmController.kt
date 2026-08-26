@@ -1,6 +1,8 @@
 package com.umain.draugr.vm
 
 import com.umain.draugr.catalog.MachineSpec
+import com.umain.draugr.platform.HostLifecycle
+import com.umain.draugr.platform.platformMemoryCeilingMb
 import com.umain.draugr.server.AssetServer
 import com.umain.draugr.server.draugrAssetProvider
 import kotlinx.coroutines.CoroutineScope
@@ -14,11 +16,31 @@ import kotlinx.coroutines.launch
  * screen renders. Everything here is shared: the platform only supplies the web view.
  */
 class VmController(
-    private val spec: MachineSpec,
+    spec: MachineSpec,
     private val scope: CoroutineScope,
     val bridge: VmBridge = VmBridge(),
     private val server: AssetServer = AssetServer(draugrAssetProvider()),
+    private val lifecycle: HostLifecycle = HostLifecycle(),
 ) {
+    /**
+     * Asking for more memory than the platform tolerates does not fail gracefully: on iOS the
+     * whole web content process is killed mid-boot. Clamp instead.
+     */
+    private val spec: MachineSpec = platformMemoryCeilingMb()
+        ?.takeIf { it < spec.memMb }
+        ?.let { ceiling -> spec.copy(memMb = ceiling) }
+        ?: spec
+
+    val memoryWasClamped: Boolean = this.spec.memMb != spec.memMb
+
+    /** Held so a guest can come back after the host process is killed under memory pressure. */
+    private var lastSnapshot: ByteArray? = null
+
+    /**
+     * Why we asked the guest to stop. Pausing makes the engine report a plain "suspended"
+     * event of its own, which must not overwrite a more specific reason such as backgrounding.
+     */
+    private var intendedSuspendReason: SuspendReason? = null
     private val _state = MutableStateFlow<VmState>(VmState.Idle)
     val state: StateFlow<VmState> = _state.asStateFlow()
 
@@ -31,6 +53,7 @@ class VmController(
     private var origin: String? = null
 
     fun start() {
+        observeLifecycle()
         scope.launch {
             runCatching { server.start() }
                 .onSuccess { serverOrigin ->
@@ -45,16 +68,79 @@ class VmController(
         }
     }
 
+    private fun observeLifecycle() {
+        lifecycle.observe(
+            onBackground = {
+                if (_state.value is VmState.Running) {
+                    intendedSuspendReason = SuspendReason.BACKGROUNDED
+                    scope.launch {
+                        runCatching { bridge.snapshot() }.onSuccess { lastSnapshot = it }
+                        bridge.pause()
+                        _state.value = VmState.Suspended(SuspendReason.BACKGROUNDED)
+                    }
+                }
+            },
+            onForeground = {
+                val suspended = _state.value as? VmState.Suspended ?: return@observe
+                scope.launch {
+                    when (suspended.reason) {
+                        SuspendReason.BACKGROUNDED -> resumeQuietly()
+                        SuspendReason.HOST_TERMINATED -> restoreLastSnapshot()
+                        SuspendReason.USER -> Unit
+                    }
+                }
+            },
+        )
+    }
+
+    private suspend fun resumeQuietly() {
+        runCatching { bridge.resume() }
+            .onSuccess {
+                intendedSuspendReason = null
+                _state.value = VmState.Running(since = nowInstant())
+            }
+    }
+
+    /** Offered after WebContent dies: the page is gone, so the guest is rebuilt from state. */
+    suspend fun restoreLastSnapshot(): Boolean {
+        val snapshot = lastSnapshot ?: return false
+        val serverOrigin = origin ?: return false
+        runCatching {
+            bridge.boot(this.spec, serverOrigin)
+            bridge.restore(snapshot)
+        }.onFailure {
+            _state.value = VmState.Halted(it.message ?: "RESTORE FAILED")
+            return false
+        }
+        _state.value = VmState.Running(since = nowInstant())
+        return true
+    }
+
+    val canRestore: Boolean get() = lastSnapshot != null
+
     private fun collectEvents() {
         scope.launch {
             bridge.events.collect { event ->
                 when (event) {
                     is VmEvent.Serial -> appendLog(event.line)
                     is VmEvent.StateChanged -> {
-                        // The page reports Idle once bridge.js has loaded, which happens before
-                        // a boot has been asked for. Do not let it clobber a live machine.
-                        if (event.state !is VmState.Idle || _state.value == VmState.Idle) {
-                            _state.value = event.state
+                        val incoming = event.state
+                        when {
+                            // The page reports Idle once bridge.js has loaded, which happens
+                            // before a boot has been asked for. Do not clobber a live machine.
+                            incoming is VmState.Idle && _state.value != VmState.Idle -> Unit
+
+                            // The engine reports its own stop with no idea why it happened.
+                            incoming is VmState.Suspended -> {
+                                _state.value = VmState.Suspended(
+                                    intendedSuspendReason ?: incoming.reason,
+                                )
+                            }
+
+                            else -> {
+                                if (incoming is VmState.Running) intendedSuspendReason = null
+                                _state.value = incoming
+                            }
                         }
                     }
                     is VmEvent.ScreenResized ->
@@ -77,6 +163,7 @@ class VmController(
     }
 
     fun pause() = scope.launch {
+        intendedSuspendReason = SuspendReason.USER
         bridge.pause()
         _state.value = VmState.Suspended(SuspendReason.USER)
     }
@@ -105,8 +192,11 @@ class VmController(
 
     suspend fun screenshot(): ByteArray? = bridge.screenshot()
 
+    suspend fun snapshotNow(): ByteArray = bridge.snapshot().also { lastSnapshot = it }
+
     fun halt() {
         _state.value = VmState.Halted(error = null)
+        lifecycle.dispose()
         server.stop()
     }
 
