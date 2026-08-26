@@ -39,11 +39,16 @@ kotlin {
             implementation(libs.jetbrains.lifecycle.runtime.compose)
             implementation(libs.ktor.server.core)
             implementation(libs.ktor.server.cio)
+            implementation(libs.ktor.server.default.headers)
             implementation(libs.okio)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+        }
+        androidUnitTest.dependencies {
+            implementation(libs.ktor.server.test.host)
+            implementation(libs.okio.fakefilesystem)
         }
         androidMain.dependencies {
             implementation(compose.preview)
