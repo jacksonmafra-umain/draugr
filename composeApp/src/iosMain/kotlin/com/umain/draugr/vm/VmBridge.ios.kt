@@ -40,7 +40,10 @@ actual class VmBridge actual constructor() {
         webView = view
     }
 
-    internal fun detach() {
+    /** The live view, so the surface can re-adopt it instead of building a new page. */
+    internal fun retainedView(): WKWebView? = webView
+
+    actual fun dispose() {
         webView = null
         ready.value = false
     }
@@ -121,8 +124,10 @@ actual class VmBridge actual constructor() {
 
     actual suspend fun sendText(text: String) = evaluate(BridgeProtocol.sendTextCall(text))
 
-    actual suspend fun setTextZoom(factor: Float) =
+    actual suspend fun setTextZoom(factor: Float) {
+        ready.first { it }
         evaluate("window.DRAUGR.setTextZoom($factor);")
+    }
 
     actual suspend fun pause() = evaluate("window.DRAUGR.pause();")
 

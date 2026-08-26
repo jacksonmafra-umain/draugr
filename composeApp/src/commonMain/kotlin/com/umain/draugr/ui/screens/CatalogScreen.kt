@@ -55,19 +55,28 @@ fun CatalogScreen(
     onBoot: (MachineSpec) -> Unit,
     onInspect: (MachineSpec) -> Unit,
     onSettings: () -> Unit,
+    /** Machines with a guest still running, so the row offers to go back to it. */
+    runningIds: Set<String> = emptySet(),
+    /** Hoisted so coming back from a machine does not reset the filter. */
+    filter: CatalogFilter,
+    onFilterChange: (CatalogFilter) -> Unit,
+    /** The type-out sequence is a first-run flourish, not something to sit through repeatedly. */
+    playIntro: Boolean,
+    onIntroPlayed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var revealed by remember { mutableStateOf(0) }
-    var listVisible by remember { mutableStateOf(false) }
-    var filter by remember { mutableStateOf(CatalogFilter.ALL) }
+    var revealed by remember { mutableStateOf(if (playIntro) 0 else BOOT_LINES.size) }
+    var listVisible by remember { mutableStateOf(!playIntro) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(playIntro) {
+        if (!playIntro) return@LaunchedEffect
         while (revealed < BOOT_LINES.size) {
             delay(180)
             revealed++
         }
         delay(140)
         listVisible = true
+        onIntroPlayed()
     }
 
     val visible = machines.filter { filter.matches(it) }
@@ -87,7 +96,7 @@ fun CatalogScreen(
         if (listVisible) {
             FilterChips(
                 selected = filter,
-                onSelect = { filter = it },
+                onSelect = onFilterChange,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
             LazyColumn(
@@ -98,6 +107,7 @@ fun CatalogScreen(
                     MachineRow(
                         index = index + 1,
                         spec = spec,
+                        running = spec.id in runningIds,
                         onBoot = { onBoot(spec) },
                         onInspect = { onInspect(spec) },
                     )
@@ -137,6 +147,7 @@ private fun FilterChips(
 private fun MachineRow(
     index: Int,
     spec: MachineSpec,
+    running: Boolean,
     onBoot: () -> Unit,
     onInspect: () -> Unit,
 ) {
@@ -146,8 +157,12 @@ private fun MachineRow(
             .fillMaxWidth()
             .alpha(if (dimmed) 0.4f else 1f)
             .clickable { onInspect() },
-        header = index.toString().padStart(2, '0'),
-        state = if (dimmed) PanelState.IDLE else PanelState.FOCUSED,
+        header = if (running) "${index.toString().padStart(2, '0')} · RUNNING" else index.toString().padStart(2, '0'),
+        state = when {
+            running -> PanelState.RUNNING
+            dimmed -> PanelState.IDLE
+            else -> PanelState.FOCUSED
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -177,7 +192,7 @@ private fun MachineRow(
         )
         if (spec.bundled) {
             Text(
-                text = ">> BOOT",
+                text = if (running) ">> RESUME" else ">> BOOT",
                 style = MaterialTheme.typography.labelSmall,
                 color = AccentText,
                 modifier = Modifier.clickable { onBoot() }.padding(top = 8.dp),

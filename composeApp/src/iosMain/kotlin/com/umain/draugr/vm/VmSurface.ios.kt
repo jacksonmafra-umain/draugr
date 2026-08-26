@@ -53,12 +53,13 @@ actual fun VmSurface(bridge: VmBridge, modifier: Modifier) {
     val handler = remember(bridge) { BridgeMessageHandler(bridge) }
     val watcher = remember(bridge) { HostProcessWatcher(bridge) }
     val scope = rememberCoroutineScope()
-    DisposableEffect(bridge) { onDispose { bridge.detach() } }
     if (url == null) return
 
     UIKitView(
         modifier = modifier,
         factory = {
+            // Re-adopt the live view when there is one: the guest runs inside the page.
+            bridge.retainedView() ?: run {
             val configuration = WKWebViewConfiguration().apply {
                 allowsInlineMediaPlayback = true
                 userContentController.addScriptMessageHandler(handler, name = "draugr")
@@ -73,6 +74,7 @@ actual fun VmSurface(bridge: VmBridge, modifier: Modifier) {
                 bridge.attach(this)
                 loadRequest(NSURLRequest.requestWithURL(NSURL(string = "$url/host.html")))
             }
+            }
         },
         // X11 guests need the new geometry, and the text screen has to be refitted.
         onResize = { view: UIView, rect: CValue<CGRect> ->
@@ -82,6 +84,7 @@ actual fun VmSurface(bridge: VmBridge, modifier: Modifier) {
                 bridge.notifyResize(size.width.toInt(), size.height.toInt())
             }
         },
-        onRelease = { bridge.detach() },
+        // No teardown here: VmBridge.dispose() ends the view's life when the machine halts.
+        onRelease = { },
     )
 }

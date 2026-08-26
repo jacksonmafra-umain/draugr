@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.catalog.formatBytes
+import com.umain.draugr.platform.BackGuard
 import com.umain.draugr.storage.formatZoom
 import com.umain.draugr.storage.nextTerminalZoom
 import com.umain.draugr.ui.components.BracketPanel
@@ -53,7 +54,6 @@ import com.umain.draugr.vm.VmState
 import com.umain.draugr.vm.VmSurface
 import com.umain.draugr.vm.isLive
 import com.umain.draugr.vm.label
-import kotlinx.coroutines.delay
 
 @Composable
 fun VmScreen(
@@ -63,6 +63,9 @@ fun VmScreen(
     onRestore: () -> Unit,
     onOpenSnapshots: () -> Unit,
     onZoomChange: (Float) -> Unit,
+    /** Back to the catalog with the guest still running. */
+    onLeave: () -> Unit,
+    /** Stops the guest for good, then back to the catalog. */
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -72,7 +75,7 @@ fun VmScreen(
     val stats by controller.stats.collectAsState()
     val zoom by controller.zoom.collectAsState()
 
-    var uptimeSeconds by remember { mutableStateOf(0L) }
+    val uptimeSeconds by controller.uptimeSeconds.collectAsState()
     var logExpanded by remember { mutableStateOf(true) }
     // A machine you cannot type into is not much use, so the keyboard starts open.
     var keyboardVisible by remember { mutableStateOf(true) }
@@ -80,15 +83,6 @@ fun VmScreen(
     // The keyboard and an expanded log cannot both have the room they want.
     LaunchedEffect(keyboardVisible) {
         if (keyboardVisible) logExpanded = false
-    }
-
-    LaunchedEffect(state.label) {
-        if (state is VmState.Running) {
-            while (true) {
-                delay(1000)
-                uptimeSeconds++
-            }
-        }
     }
 
     // A booting guest is exactly when the log matters, so it stays open until it is running.
@@ -101,6 +95,8 @@ fun VmScreen(
         is VmState.Running -> PanelState.RUNNING
         else -> PanelState.IDLE
     }
+
+    BackGuard(enabled = true, onBack = onLeave)
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
     val keyboardMaxHeight = maxHeight * KEYBOARD_HEIGHT_FRACTION
@@ -262,6 +258,7 @@ fun VmScreen(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { Action("< MENU", PrimaryText) { onLeave() } }
             item {
                 Action("KEYS", if (keyboardVisible) AccentText else PrimaryText) {
                     keyboardVisible = !keyboardVisible
