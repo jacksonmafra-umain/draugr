@@ -28,6 +28,9 @@ fun GlitchText(
     style: TextStyle = LocalTextStyle.current,
     color: androidx.compose.ui.graphics.Color = PrimaryText,
     tickMillis: Long = 90L,
+    // Headers wrap; a name sitting in a fixed-width HUD row must not.
+    maxLines: Int = Int.MAX_VALUE,
+    softWrap: Boolean = true,
 ) {
     var jitter by remember { mutableStateOf(0) }
     LaunchedEffect(text) {
@@ -44,14 +47,18 @@ fun GlitchText(
             text = text,
             style = style,
             color = SecondaryText.copy(alpha = 0.7f),
+            maxLines = maxLines,
+            softWrap = softWrap,
             modifier = Modifier.offset(x = (-1 + jitter).dp),
         )
         Text(
             text = text,
             style = style,
             color = PrimaryText.copy(alpha = 0.7f),
+            maxLines = maxLines,
+            softWrap = softWrap,
             modifier = Modifier.offset(x = (1 - jitter).dp),
         )
-        Text(text = text, style = style, color = color)
+        Text(text = text, style = style, color = color, maxLines = maxLines, softWrap = softWrap)
     }
 }
