@@ -16,10 +16,24 @@ build_dir="${DRAUGR_DEVICE_BUILD_DIR:-$root/build/ios-device}"
 
 say() { printf '>> %s\n' "$1"; }
 
-devices="$(xcrun devicectl list devices 2>/dev/null | grep 'available (paired)' || true)"
+# devicectl reports a device as unavailable for a few seconds after any operation on it, so a
+# single listing is not evidence that nothing is connected.
+devices=""
+for attempt in 1 2 3 4 5 6; do
+  devices="$(xcrun devicectl list devices 2>/dev/null | grep 'available (paired)' || true)"
+  if [ -n "$filter" ]; then
+    matched="$(printf '%s\n' "$devices" | grep -i -- "$filter" || true)"
+  else
+    matched="$devices"
+  fi
+  [ -n "$matched" ] && break
+  [ "$attempt" -lt 6 ] && sleep 5
+done
+devices="$matched"
+
 if [ -z "$devices" ]; then
   cat >&2 <<'MSG'
-No paired iPhone is available.
+No paired iPhone is available${filter:+ matching "$filter"}.
 
   - Connect it by cable, or put it on the same network as this Mac
   - Unlock it and trust this computer
@@ -31,21 +45,15 @@ MSG
   exit 1
 fi
 
-if [ -n "$filter" ]; then
-  devices="$(printf '%s\n' "$devices" | grep -i -- "$filter" || true)"
-  if [ -z "$devices" ]; then
-    printf 'No available device matches "%s".\n' "$filter" >&2
-    exit 1
-  fi
-fi
-
-# Columns: name..., hostname, identifier, state...
-identifier="$(printf '%s\n' "$devices" | head -1 | awk '{for (i=1;i<=NF;i++) if ($i ~ /coredevice\.local$/) print $(i+1)}')"
-name="$(printf '%s\n' "$devices" | head -1 | sed 's/  */ /g' | cut -d' ' -f1-2)"
+# Columns are separated by runs of spaces: "name   hostname   identifier   state   model".
+row="$(printf '%s\n' "$devices" | head -1)"
+identifier="$(printf '%s' "$row" | awk '{for (i=1;i<=NF;i++) if ($i ~ /coredevice\.local$/) print $(i+1)}')"
+name="$(printf '%s' "$row" | sed -E 's/[[:space:]]{2,}.*//')"
 say "device: $name ($identifier)"
 
-# xcodebuild wants the hardware UDID rather than the CoreDevice identifier.
-udid="$(xcrun xctrace list devices 2>/dev/null | grep -m1 -F "$(printf '%s' "$name" | awk '{print $1}')" | sed -E 's/.*\(([0-9A-Fa-f-]{25,})\).*/\1/')"
+# xcodebuild wants the hardware UDID, which devicectl does not print. `|| true` matters: under
+# `set -e` a failing command substitution aborts the script with no message at all.
+udid="$(xcrun xctrace list devices 2>/dev/null | grep -m1 -F "$name" | sed -E 's/.*\(([0-9A-Fa-f-]{25,})\).*/\1/' || true)"
 if [ -z "$udid" ]; then
   say "falling back to 'generic/platform=iOS'"
   destination="generic/platform=iOS"
