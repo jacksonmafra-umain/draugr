@@ -27,6 +27,12 @@
 	<string>0.1</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<!-- iTunes File Sharing: dropping a large disk image in over USB is far easier than
+	     pushing it through the document picker, and SideloadStore discovers what lands here. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchScreen</key>
