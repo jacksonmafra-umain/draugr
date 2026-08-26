@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "machines": [
+    {
+      "id": "alpine-x86_64",
+      "cpu": "x86_64",
+      "os": "Alpine Linux 3.23",
+      "ui": "CONSOLE",
+      "engine": "TINYEMU",
+      "memMb": 512,
+      "assets": {
+        "kernel": "images/alpine-x86_64/kernel-x86_64.bin",
+        "hda": "images/alpine-x86_64/root-x86_64.bin"
+      },
+      "sizeBytes": 71303168,
+      "bundled": true,
+      "note": "Built from the TinyEMU x86_64 target. The AVX-512 and APX capable build needs a host with those features to be interesting."
+    },
+    {
+      "id": "alpine-x86-console",
+      "cpu": "x86",
+      "os": "Alpine Linux 3.12",
+      "ui": "CONSOLE",
+      "engine": "V86",
+      "memMb": 256,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "hda": "images/alpine-x86/alpine-3.12-console.img"
+      },
+      "sizeBytes": 47185920,
+      "bundled": true,
+      "note": "Smallest bundled guest. Boots to a shell in a few seconds and is the reference machine for bridge work."
+    },
+    {
+      "id": "alpine-x86-x11",
+      "cpu": "x86",
+      "os": "Alpine Linux 3.12",
+      "ui": "X_WINDOW",
+      "engine": "V86",
+      "memMb": 512,
+      "vgaMemMb": 16,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "hda": "images/alpine-x86/alpine-3.12-x11.img"
+      },
+      "sizeBytes": 132120576,
+      "bundled": true,
+      "note": "Guest geometry follows the surface size, so resizing the app reconfigures X."
+    },
+    {
+      "id": "buildroot-rv64",
+      "cpu": "riscv64",
+      "os": "Buildroot",
+      "ui": "CONSOLE",
+      "engine": "TINYEMU",
+      "memMb": 256,
+      "assets": {
+        "bios": "bios/bbl64.bin",
+        "kernel": "images/buildroot-rv64/kernel-riscv64.bin",
+        "hda": "images/buildroot-rv64/root-riscv64.bin"
+      },
+      "sizeBytes": 44040192,
+      "bundled": true
+    },
+    {
+      "id": "buildroot-rv64-x11",
+      "cpu": "riscv64",
+      "os": "Buildroot",
+      "ui": "X_WINDOW",
+      "engine": "TINYEMU",
+      "memMb": 512,
+      "vgaMemMb": 16,
+      "assets": {
+        "bios": "bios/bbl64.bin",
+        "kernel": "images/buildroot-rv64/kernel-riscv64.bin",
+        "hda": "images/buildroot-rv64/root-riscv64-xwin.bin"
+      },
+      "sizeBytes": 88080384,
+      "bundled": true
+    },
+    {
+      "id": "fedora-rv64",
+      "cpu": "riscv64",
+      "os": "Fedora 33",
+      "ui": "CONSOLE",
+      "engine": "TINYEMU",
+      "memMb": 1024,
+      "assets": {
+        "bios": "bios/bbl64.bin",
+        "kernel": "images/fedora-rv64/kernel-riscv64.bin",
+        "hda": "images/fedora-rv64/root-riscv64-fedora33.bin"
+      },
+      "sizeBytes": 1073741824,
+      "bundled": true,
+      "note": "Wants 1024MB, which is above the iOS budget of 512MB. Expect WebContent to be jetsam-killed on device."
+    },
+    {
+      "id": "freedos",
+      "cpu": "x86",
+      "os": "FreeDOS",
+      "ui": "VGA_TEXT",
+      "engine": "V86",
+      "memMb": 64,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "fda": "images/freedos/freedos722.img"
+      },
+      "sizeBytes": 737280,
+      "bundled": true,
+      "note": "Boots from a 720KB floppy image. The cheapest way to prove the whole pipeline works."
+    },
+    {
+      "id": "reactos",
+      "cpu": "x86",
+      "os": "ReactOS",
+      "ui": "GRAPHICAL",
+      "engine": "V86",
+      "memMb": 512,
+      "vgaMemMb": 16,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "hda": "images/reactos/reactos.img"
+      },
+      "sizeBytes": 681574400,
+      "bundled": true,
+      "note": "Long boot. Watch the serial log rather than the framebuffer to tell whether it is progressing."
+    },
+    {
+      "id": "win95",
+      "cpu": "x86",
+      "os": "Windows 95",
+      "ui": "GRAPHICAL",
+      "engine": "V86",
+      "memMb": 64,
+      "vgaMemMb": 8,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "hda": "sideload/win95/hda.img"
+      },
+      "sizeBytes": 1288490188,
+      "bundled": false,
+      "note": "Licence gated. Supply your own image through the sideload path; nothing Microsoft derived ships in this repository."
+    },
+    {
+      "id": "win2000",
+      "cpu": "x86",
+      "os": "Windows 2000",
+      "ui": "GRAPHICAL",
+      "engine": "V86",
+      "memMb": 512,
+      "vgaMemMb": 16,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "hda": "sideload/win2000/hda.img"
+      },
+      "sizeBytes": 2147483648,
+      "bundled": false,
+      "note": "Licence gated. Supply your own image through the sideload path; nothing Microsoft derived ships in this repository."
+    }
+  ]
+}
