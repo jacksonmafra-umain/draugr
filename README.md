@@ -1,5 +1,7 @@
 # draugr
 
+<img src="docs/icon.png" width="96" align="right" alt="draugr icon" />
+
 > **draugr** (Old Norse): the undead that walk again from the howe. Dead operating systems,
 > resurrected in your pocket.
 
@@ -9,9 +11,9 @@ web view.
 
 **Proof of concept. Local only. Not for store distribution.**
 
-| Catalog | Machine | Detail | Snapshots | Settings |
-|---|---|---|---|---|
-| ![Catalog](docs/screenshots/android-catalog.png) | ![FreeDOS running](docs/screenshots/android-machine.png) | ![Machine detail](docs/screenshots/android-detail.png) | ![Saved states](docs/screenshots/android-snapshots.png) | ![Settings](docs/screenshots/android-settings.png) |
+| Catalog | Machine | Detail | Snapshots | Settings | Credits |
+|---|---|---|---|---|---|
+| ![Catalog](docs/screenshots/android-catalog.png) | ![FreeDOS running](docs/screenshots/android-machine.png) | ![Machine detail](docs/screenshots/android-detail.png) | ![Saved states](docs/screenshots/android-snapshots.png) | ![Settings](docs/screenshots/android-settings.png) | ![Credits](docs/screenshots/android-credits.png) |
 
 Android above, a Galaxy A34 running FreeDOS through v86. The same build on iOS:
 
@@ -78,7 +80,23 @@ It emits scancodes, never text. Letters, `SHIFT` and `BSP` sit on the first laye
 numbers, symbols, arrows and `F1`–`F12`. `CTRL` and `ALT` latch, since a terminal needs them held
 across keys; `SHIFT` releases after one character, the way a phone's does.
 
-Tapping the catalog header opens settings, which is also where `HOST SELF TEST` lives.
+Tapping the catalog header opens settings, which is also where `HOST SELF TEST` and `CREDITS`
+live. The credits screen names every emulator, guest and library the app is built on, with its
+licence and where it came from — it is the same data a test asserts is complete.
+
+### The mark
+
+The icon is the Old Norse rune **dagaz**, two triangles meeting, inside the bracket corners the
+app draws everywhere, with the chromatic offset `GlitchText` uses. It is generated rather than
+drawn by hand, so every size stays identical:
+
+```bash
+python3 tools/generate-icons.py
+```
+
+That writes the Android launcher icons and adaptive layers, the iOS app icon and launch image at
+all three scales, and `docs/icon.png`. The same rune is the splash on both platforms: Android
+through `core-splashscreen` with a vector drawable, iOS through `UILaunchScreen`.
 
 ## The embedded server, and why `file://` cannot work
 
