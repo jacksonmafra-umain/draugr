@@ -4,6 +4,8 @@ import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.platform.HostLifecycle
 import com.umain.draugr.platform.platformMemoryCeilingMb
 import com.umain.draugr.server.AssetServer
+import com.umain.draugr.catalog.Engine
+import com.umain.draugr.server.GeneratedAssets
 import com.umain.draugr.server.draugrAssetProvider
 import com.umain.draugr.storage.SnapshotEntry
 import com.umain.draugr.storage.SnapshotStore
@@ -28,7 +30,8 @@ class VmController(
      */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     val bridge: VmBridge = VmBridge(),
-    private val server: AssetServer = AssetServer(draugrAssetProvider()),
+    private val generated: GeneratedAssets = GeneratedAssets(),
+    private val server: AssetServer = AssetServer(draugrAssetProvider(generated)),
     private val lifecycle: HostLifecycle = HostLifecycle(),
     private val snapshots: SnapshotStore = SnapshotStore(),
 ) {
@@ -213,6 +216,13 @@ class VmController(
 
     private fun boot(serverOrigin: String) {
         scope.launch {
+            // TinyEMU fetches its own config file, so it has to exist before the boot call.
+            if (spec.engine == Engine.TINYEMU) {
+                generated.put(
+                    TinyEmuConfig.pathFor(spec),
+                    TinyEmuConfig.render(spec, serverOrigin),
+                )
+            }
             _state.value = VmState.Booting(elapsedMs = 0L)
             runCatching { bridge.boot(spec, serverOrigin) }
                 .onFailure { _state.value = VmState.Halted(it.message ?: "BOOT FAILED") }

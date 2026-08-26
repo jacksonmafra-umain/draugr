@@ -13,7 +13,8 @@ composeResources/files/emulator/
 ├── bridge-probe.js           host self test script
 ├── v86/                      libv86.js, v86.wasm, v86-fallback.wasm   (committed)
 ├── bios/                     seabios.bin, vgabios.bin                 (committed)
-├── tinyemu/                  tinyemu.js, tinyemu.wasm, tinyemu-shim.js (built locally)
+├── tinyemu/                  tinyemu64.js, tinyemu64.wasm            (built locally)
+├── tinyemu-shim.js           engine B wrapper, registers itself
 └── images/                   guest disk images                        (fetched, git-ignored)
 ```
 
@@ -85,50 +86,73 @@ emcc --version        # 4.x or newer
 
 ### Build
 
-`emulator/build-tinyemu.sh` drives this. The flags that matter:
-
 ```bash
-emcc \
-  -O3 \
-  -o tinyemu.js \
-  $SOURCES \
-  -s ALLOW_MEMORY_GROWTH=1 \
-  -s ASYNCIFY=1 \
-  -s ASYNCIFY_STACK_SIZE=32768 \
-  -s MODULARIZE=1 \
-  -s EXPORT_NAME=TinyEmuModule \
-  -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","stringToUTF8","lengthBytesUTF8"]' \
-  -s EXPORTED_FUNCTIONS='["_temu_start","_temu_key","_temu_snapshot","_temu_restore","_temu_pause","_temu_resume","_malloc","_free"]' \
-  -s INITIAL_MEMORY=67108864 \
-  -s STACK_SIZE=1048576 \
-  -s FETCH=1 \
-  --js-library tinyemu-vfsync.js
+./emulator/build-tinyemu.sh
 ```
 
-Add `-pthread -s PTHREAD_POOL_SIZE=4 -s SHARED_MEMORY=1` **only** for an iOS-only build.
-That variant cannot run on Android for the isolation reason above, so it is not the default.
+The script fetches `tinyemu-2019-12-21.tar.gz` from bellard.org, verifies it against a pinned
+SHA-256, compiles the riscv64 target, and writes `tinyemu64.js` plus `tinyemu64.wasm` into
+`composeResources/files/emulator/tinyemu/`. Record the hashes in `emulator/CHECKSUMS.txt`
+afterwards so a normal build stays verifiable.
+
+The flags that matter:
+
+```
+-s WASM=1
+-s ALLOW_MEMORY_GROWTH=1
+-s ASYNCIFY=1
+-s ASYNCIFY_STACK_SIZE=32768
+-s INITIAL_MEMORY=67108864
+-s STACK_SIZE=1048576
+-s MODULARIZE=1 -s EXPORT_NAME=TinyEmu64
+-s NO_EXIT_RUNTIME=1 -s NO_FILESYSTEM=1
+--js-library emulator/tinyemu/draugr_lib.js
+```
 
 `ASYNCIFY` is what lets the C main loop block on a synchronous block-device read while the
-JavaScript event loop keeps turning. Without it the VFsync block device deadlocks.
+JavaScript event loop keeps turning. Without it the network block device deadlocks.
 
-`FETCH=1` plus the VFsync JS library maps the guest's 512-byte block reads onto HTTP Range
-requests against the local asset server, which is the whole reason a 1GB Fedora image can boot
-on a phone.
+Add `-pthread -s PTHREAD_POOL_SIZE=4 -s SHARED_MEMORY=1` **only** for an iOS-only build. That
+variant cannot run on Android for the isolation reason above, which is why it is not the default.
 
-### C API the shim expects
+### What upstream provides, and what this repository adds
 
-```c
-int  temu_start(const char *config_json);   /* returns 0 on success              */
-void temu_key(int keycode, int pressed);    /* Linux keycodes, not PC scancodes  */
-int  temu_snapshot(void **out, size_t *len);
-int  temu_restore(const void *data, size_t len);
-void temu_pause(void);
-void temu_resume(void);
-```
+TinyEMU already compiles to the web: `jsemu.c` is its browser entry point and exports
+`vm_start`, `console_queue_char`, `display_key_event` and friends. It fetches its config, BIOS,
+kernel and disk blocks with `emscripten_async_wget3_data`, which is plain Emscripten — that is
+exactly what turns a guest's block reads into HTTP Range requests against the local asset
+server, with no custom block device needed.
 
-`tinyemu-shim.js` wraps those and calls
-`window.DRAUGR_REGISTER_ENGINE('tinyemu', TinyEmuEngine)`, so `bridge.js` picks the engine up
-without knowing anything about it and `commonMain` stays engine-agnostic.
+What upstream does *not* ship in the source archive is `js/lib.js`, the Emscripten
+`--js-library` holding the five hooks `jsemu.c` calls back into. That file belongs to the
+jslinux.com build, which is not redistributable. `emulator/tinyemu/draugr_lib.js` provides them:
+
+| Hook | Purpose |
+|---|---|
+| `console_write` | guest serial output, forwarded to the Compose boot log |
+| `console_get_size` | the 80x25 character grid the guest is told it has |
+| `fb_refresh` | framebuffer blits, drawn onto the host canvas |
+| `net_recv_packet` | ignored: the app is loopback only |
+| `fs_wget_update_downloading` | drives the `FETCHING` state in the HUD |
+
+`composeResources/files/emulator/tinyemu-shim.js` wraps those into an engine object and calls
+`window.DRAUGR_REGISTER_ENGINE('tinyemu', ...)`, so `bridge.js` picks it up without knowing it
+exists and `commonMain` stays engine-agnostic. `bridge.js` loads the shim on first use and, when
+the artifacts are missing, boots to a plain `engine not built: run emulator/build-tinyemu.sh`.
+
+### The config file
+
+TinyEMU reads a config file over HTTP rather than taking arguments. The app generates one per
+machine from its `MachineSpec` and serves it from memory at `config/<id>.cfg`, with every asset
+written as an absolute URL against the same server. See `TinyEmuConfig` and its tests.
+
+### Known gaps
+
+- **Snapshots.** Upstream TinyEMU has no state serialiser, so the shim reports pause, resume and
+  snapshot as unsupported rather than pretending. v86 machines keep full snapshot support.
+- **x86_64.** `x86_cpu.c` and `x86_machine.c` are only wired into upstream's native target. The
+  `alpine-x86_64` catalog entry needs a second `build_target` once those compile clean under
+  `emcc`.
 
 ## Guest images
 
