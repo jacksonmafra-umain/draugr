@@ -91,9 +91,9 @@ actual class VmBridge actual constructor() {
         return deferred.await()
     }
 
-    actual suspend fun boot(spec: MachineSpec, serverOrigin: String) {
+    actual suspend fun boot(spec: MachineSpec, serverOrigin: String, networkRelayUrl: String?) {
         ready.first { it }
-        evaluate(BridgeProtocol.bootCall(spec, serverOrigin))
+        evaluate(BridgeProtocol.bootCall(spec, serverOrigin, networkRelayUrl))
     }
 
     actual suspend fun bootWithState(

@@ -13,7 +13,7 @@ expect class VmBridge() {
     /** Points the surface at the server origin. Must happen before the view is composed. */
     fun prepare(hostUrl: String)
 
-    suspend fun boot(spec: MachineSpec, serverOrigin: String)
+    suspend fun boot(spec: MachineSpec, serverOrigin: String, networkRelayUrl: String?)
 
     /**
      * Cold start into a saved state served at [statePath], relative to the server root. States

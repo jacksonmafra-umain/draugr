@@ -35,6 +35,8 @@ class VmController(
     private val server: AssetServer = AssetServer(draugrAssetProvider(generated)),
     private val lifecycle: HostLifecycle = HostLifecycle(),
     private val snapshots: SnapshotStore = SnapshotStore(),
+    /** WebSocket relay for guest networking, or blank for no network. */
+    private val networkRelayUrl: String = "",
 ) {
     /**
      * Asking for more memory than the platform tolerates does not fail gracefully: on iOS the
@@ -257,7 +259,7 @@ class VmController(
                 )
             }
             _state.value = VmState.Booting(elapsedMs = 0L)
-            runCatching { bridge.boot(spec, serverOrigin) }
+            runCatching { bridge.boot(spec, serverOrigin, networkRelayUrl.ifBlank { null }) }
                 .onFailure { _state.value = VmState.Halted(it.message ?: "BOOT FAILED") }
         }
     }
