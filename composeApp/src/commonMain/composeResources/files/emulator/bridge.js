@@ -84,17 +84,45 @@
     this.rows = 25;
   }
 
-  // A text screen is a character grid, not pixels. v86 renders each row as a block-level
-  // child whose box is the parent's width, so measuring the DOM tells us nothing about the
-  // real content width. Size the font from the grid instead: cols x glyph advance.
+  // A text screen is a character grid, not pixels. v86 renders each row as a block-level child
+  // whose box is the parent's width, so measuring the DOM directly tells us nothing about the
+  // real content width. Instead: set a candidate font size, measure a hidden probe of exactly
+  // one row of characters in the same inherited font, then correct. Estimating the glyph
+  // advance instead of measuring it clipped the last few columns on narrower screens.
   var BASE_FONT_PX = 16;
   var LINE_HEIGHT = 1.05;
-  var measureCanvas = document.createElement('canvas');
 
-  function glyphWidth(fontPx) {
-    var ctx = measureCanvas.getContext('2d');
-    ctx.font = fontPx + 'px monospace';
-    return ctx.measureText('M').width || fontPx * 0.6;
+  function probeRowWidth(container, fontPx, columns, fontFamily) {
+    var probe = document.createElement('span');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    probe.style.whiteSpace = 'pre';
+    probe.style.fontSize = fontPx + 'px';
+    probe.style.fontFamily = fontFamily || 'monospace';
+    probe.textContent = new Array(columns + 1).join('M');
+    container.appendChild(probe);
+    var width = probe.getBoundingClientRect().width;
+    container.removeChild(probe);
+    return width;
+  }
+
+  /**
+   * Width of a row as actually laid out. A Range measures the inline extent of the text inside
+   * a block element, which is the only reliable number here: the row's own box is the parent's
+   * width, and a probe span can pick up a different font than the one v86 renders with.
+   */
+  function renderedRowWidth(text) {
+    var widest = 0;
+    for (var i = 0; i < text.children.length; i++) {
+      var row = text.children[i];
+      if (!row.firstChild) continue;
+      var range = document.createRange();
+      range.selectNodeContents(row);
+      var width = range.getBoundingClientRect().width;
+      range.detach && range.detach();
+      if (width > widest) widest = width;
+    }
+    return widest;
   }
 
   V86Engine.prototype.fitTextScreen = function () {
@@ -108,19 +136,25 @@
     container.style.width = window.innerWidth + 'px';
     container.style.height = window.innerHeight + 'px';
 
-    var cols = this.cols || 80;
-    var rows = this.rows || 25;
-    var advance = glyphWidth(BASE_FONT_PX) / BASE_FONT_PX;
-
-    var byWidth = window.innerWidth / (cols * advance);
-    var byHeight = window.innerHeight / (rows * LINE_HEIGHT);
-    // A hair under a perfect fit: sub-pixel advances round up and clip the last column.
-    var fontPx = Math.floor(Math.min(byWidth, byHeight) * 100) / 100 * 0.98;
-    if (!(fontPx > 0) || !isFinite(fontPx)) return;
-
+    // Scale rather than restyle. v86 rewrites the text screen's inline font-size on every
+    // redraw, so anything set there is gone by the next frame; it never touches transform.
+    text.style.transformOrigin = 'top left';
     text.style.transform = 'none';
-    text.style.fontSize = fontPx + 'px';
-    text.style.lineHeight = String(LINE_HEIGHT);
+    text.style.width = 'max-content';
+    text.style.overflow = 'visible';
+
+    var box = text.getBoundingClientRect();
+    var width = Math.max(renderedRowWidth(text), box.width);
+    var height = box.height;
+    if (!width) {
+      width = probeRowWidth(container, BASE_FONT_PX, this.cols || 80, 'monospace');
+    }
+    if (!width || !height) return;
+
+    // A hair under a perfect fit: sub-pixel advances round up and clip the last column.
+    var scale = Math.min(window.innerWidth / width, window.innerHeight / height) * 0.99;
+    if (!(scale > 0) || !isFinite(scale)) return;
+    text.style.transform = 'scale(' + scale + ')';
   };
 
   V86Engine.prototype.boot = function (config) {
@@ -169,6 +203,12 @@
     this.emulator.add_listener('emulator-loaded', function () {
       emit({ type: 'state', state: 'running' });
       self.startStats();
+      // The widest row only exists once the guest has printed one, so refit for a short while.
+      var refits = 0;
+      var handle = setInterval(function () {
+        self.fitTextScreen();
+        if (++refits > 12) clearInterval(handle);
+      }, 500);
     });
 
     this.emulator.add_listener('serial0-output-byte', function (byte) {
