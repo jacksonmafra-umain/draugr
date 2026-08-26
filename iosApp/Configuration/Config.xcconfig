@@ -1,3 +1,9 @@
-TEAM_ID=
+// Signing for physical devices. Simulator builds need none of this.
+//
+// TEAM_ID is the Apple Developer team the app is signed with. Empty means simulator only:
+// a device build then fails with "No Account for Team", which is exactly what happened here
+// until it was set. Override it per machine with:
+//   xcodebuild ... DEVELOPMENT_TEAM=YOURTEAM
+TEAM_ID=B62NKLG448
 BUNDLE_ID=com.umain.draugr
 APP_NAME=DRAUGR
