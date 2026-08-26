@@ -22,7 +22,9 @@ import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
+import com.umain.draugr.storage.SettingsStore
 import com.umain.draugr.ui.screens.SelfTestScreen
+import com.umain.draugr.ui.screens.SettingsScreen
 import com.umain.draugr.ui.screens.SnapshotScreen
 import com.umain.draugr.ui.screens.VmScreen
 import com.umain.draugr.vm.VmController
@@ -37,6 +39,7 @@ private sealed interface Route {
     data class Detail(val spec: MachineSpec) : Route
     data class Vm(val spec: MachineSpec) : Route
     data class Snapshots(val spec: MachineSpec) : Route
+    data object Settings : Route
 }
 
 /**
@@ -55,6 +58,8 @@ fun DraugrApp() {
     var machines by remember { mutableStateOf<List<MachineSpec>?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     var route by remember { mutableStateOf<Route>(Route.Catalog) }
+    val settingsStore = remember { SettingsStore() }
+    var settings by remember { mutableStateOf(settingsStore.load()) }
 
     LaunchedEffect(Unit) {
         runCatching { CatalogRepository(sideload = SideloadStore()).load() }
@@ -62,7 +67,7 @@ fun DraugrApp() {
             .onFailure { failure = it.message ?: "CATALOG UNREADABLE" }
     }
 
-    DraugrTheme {
+    DraugrTheme(scanlinesEnabled = settings.scanlinesEnabled) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -90,10 +95,20 @@ fun DraugrApp() {
                         machines = loaded,
                         onBoot = { route = Route.Vm(it) },
                         onInspect = { route = Route.Detail(it) },
-                        onSelfTest = { route = Route.SelfTest },
+                        onSettings = { route = Route.Settings },
                     )
 
-                    Route.SelfTest -> SelfTestScreen(onBack = { route = Route.Catalog })
+                    Route.SelfTest -> SelfTestScreen(onBack = { route = Route.Settings })
+
+                    Route.Settings -> SettingsScreen(
+                        settings = settings,
+                        onSettingsChange = { updated ->
+                            settings = updated
+                            settingsStore.save(updated)
+                        },
+                        onSelfTest = { route = Route.SelfTest },
+                        onBack = { route = Route.Catalog },
+                    )
 
                     is Route.Vm -> {
                         val scope = rememberCoroutineScope()

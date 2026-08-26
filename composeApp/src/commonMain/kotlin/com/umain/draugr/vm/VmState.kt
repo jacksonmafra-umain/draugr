@@ -26,6 +26,7 @@ sealed interface VmEvent {
     data class Serial(val line: String) : VmEvent
     data class StateChanged(val state: VmState) : VmEvent
     data class ScreenResized(val w: Int, val h: Int, val graphical: Boolean) : VmEvent
+    data class Stats(val instructionsPerSecond: Long, val fetchedBytes: Long) : VmEvent
     data class Fault(val message: String) : VmEvent
 }
 

@@ -71,6 +71,11 @@ object BridgeProtocol {
                 graphical = obj["graphical"]?.jsonPrimitive?.booleanOrNull ?: true,
             )
 
+            "stats" -> VmEvent.Stats(
+                instructionsPerSecond = obj["ips"]?.jsonPrimitive?.longOrNull ?: 0L,
+                fetchedBytes = obj["fetchedBytes"]?.jsonPrimitive?.longOrNull ?: 0L,
+            )
+
             "error" -> VmEvent.Fault(
                 listOfNotNull(
                     obj["stage"]?.jsonPrimitive?.content,

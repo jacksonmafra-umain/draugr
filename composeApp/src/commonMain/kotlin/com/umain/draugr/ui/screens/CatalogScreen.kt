@@ -54,7 +54,7 @@ fun CatalogScreen(
     machines: List<MachineSpec>,
     onBoot: (MachineSpec) -> Unit,
     onInspect: (MachineSpec) -> Unit,
-    onSelfTest: () -> Unit,
+    onSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var revealed by remember { mutableStateOf(0) }
@@ -77,7 +77,7 @@ fun CatalogScreen(
             text = BOOT_LINES.first(),
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier
-                .clickable { onSelfTest() }
+                .clickable { onSettings() }
                 .padding(top = 24.dp, bottom = 8.dp),
         )
         BOOT_LINES.drop(1).take((revealed - 1).coerceAtLeast(0)).forEach { line ->

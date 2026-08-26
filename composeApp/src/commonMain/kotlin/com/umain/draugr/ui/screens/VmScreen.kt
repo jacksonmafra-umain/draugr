@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.catalog.MachineSpec
+import com.umain.draugr.catalog.formatBytes
 import com.umain.draugr.ui.components.BracketPanel
 import com.umain.draugr.ui.components.GlitchText
 import com.umain.draugr.ui.components.PanelState
@@ -63,6 +64,7 @@ fun VmScreen(
     val state by controller.state.collectAsState()
     val log by controller.log.collectAsState()
     val geometry by controller.geometry.collectAsState()
+    val stats by controller.stats.collectAsState()
 
     var uptimeSeconds by remember { mutableStateOf(0L) }
     var logExpanded by remember { mutableStateOf(true) }
@@ -116,7 +118,8 @@ fun VmScreen(
                 stats = listOf(
                     Stat("UPTIME", formatUptime(uptimeSeconds)),
                     Stat("GEOMETRY", geometry.label),
-                    Stat("RAM", "${spec.memMb}MB"),
+                    Stat("FETCHED", stats.fetchedBytes.formatBytes()),
+                    Stat("IPS", formatIps(stats.instructionsPerSecond)),
                     Stat("ENGINE", spec.engine.label),
                 ),
                 modifier = Modifier.padding(top = 8.dp),
@@ -257,6 +260,15 @@ private fun Action(label: String, color: androidx.compose.ui.graphics.Color, onC
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 8.dp),
     )
+}
+
+/** Zero-padded so the HUD does not jitter as the number changes width. */
+private fun formatIps(value: Long): String = when {
+    value <= 0L -> "---"
+    value >= 1_000_000_000L -> "${value / 1_000_000_000L}.${(value % 1_000_000_000L) / 100_000_000L}G"
+    value >= 1_000_000L -> "${value / 1_000_000L}.${(value % 1_000_000L) / 100_000L}M"
+    value >= 1_000L -> "${value / 1_000L}K"
+    else -> value.toString()
 }
 
 /** Text guests are 80x25 characters; 4:3 is the closest thing to their real shape. */

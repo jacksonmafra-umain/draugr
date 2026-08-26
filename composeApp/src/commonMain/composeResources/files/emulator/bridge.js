@@ -15,6 +15,35 @@
 
 
   var listeners = [];
+  var fetchedBytes = 0;
+
+  // Both engines stream disk blocks over HTTP, one through XHR and one through fetch. Counting
+  // here rather than inside an engine keeps the HUD honest for whichever is running.
+  (function instrumentTransports() {
+    var nativeSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function () {
+      this.addEventListener('load', function () {
+        var length = this.getResponseHeader && this.getResponseHeader('content-length');
+        if (length) {
+          fetchedBytes += parseInt(length, 10) || 0;
+        } else if (this.response && this.response.byteLength) {
+          fetchedBytes += this.response.byteLength;
+        }
+      });
+      return nativeSend.apply(this, arguments);
+    };
+
+    if (typeof window.fetch === 'function') {
+      var nativeFetch = window.fetch;
+      window.fetch = function () {
+        return nativeFetch.apply(this, arguments).then(function (response) {
+          var length = response.headers.get('content-length');
+          if (length) fetchedBytes += parseInt(length, 10) || 0;
+          return response;
+        });
+      };
+    }
+  })();
 
   function emit(event) {
     var text = JSON.stringify(event);
@@ -139,6 +168,7 @@
 
     this.emulator.add_listener('emulator-loaded', function () {
       emit({ type: 'state', state: 'running' });
+      self.startStats();
     });
 
     this.emulator.add_listener('serial0-output-byte', function (byte) {
@@ -211,6 +241,22 @@
     var line = this.serialBuffer;
     this.serialBuffer = '';
     emit({ type: 'serial', line: line });
+  };
+
+  V86Engine.prototype.startStats = function () {
+    var self = this;
+    var previous = 0;
+    this.statsHandle = setInterval(function () {
+      var counter = 0;
+      try {
+        counter = self.emulator.get_instruction_counter();
+      } catch (ignored) {
+        counter = 0;
+      }
+      var delta = counter >= previous ? counter - previous : 0;
+      previous = counter;
+      emit({ type: 'stats', ips: delta, fetchedBytes: fetchedBytes });
+    }, 1000);
   };
 
   V86Engine.prototype.sendKeys = function (codes) {
