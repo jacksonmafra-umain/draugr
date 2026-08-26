@@ -113,10 +113,12 @@ private fun Toggle(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onToggle() },
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column {
+        // The text takes the leftover width and the state keeps its own. Without the weight the
+        // description claimed the whole row and squeezed `[ ON ]` down to one character a line.
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.titleMedium,
@@ -132,6 +134,8 @@ private fun Toggle(
             text = if (enabled) "[ ON ]" else "[ OFF ]",
             style = MaterialTheme.typography.titleMedium,
             color = if (enabled) AccentText else MutedText,
+            maxLines = 1,
+            softWrap = false,
         )
     }
 }
