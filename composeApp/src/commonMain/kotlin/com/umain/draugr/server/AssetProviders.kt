@@ -10,16 +10,33 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  * streamed by range and, in the sideload case, written by the user.
  */
 @OptIn(ExperimentalResourceApi::class)
-fun draugrAssetProvider(): AssetProvider = PrefixAssetProvider(
-    listOf(
-        "images" to FileAssetProvider(platformFileSystem, appStorageDir() / "images"),
-        "sideload" to FileAssetProvider(platformFileSystem, appStorageDir() / "sideload"),
-        "" to BundledAssetProvider { path ->
-            if (!path.isSafeRelativePath()) {
-                null
-            } else {
-                runCatching { Res.readBytes("files/emulator/$path") }.getOrNull()
-            }
-        },
-    ),
-)
+fun draugrAssetProvider(): AssetProvider {
+    val bundled = BundledAssetProvider { path ->
+        if (!path.isSafeRelativePath()) {
+            null
+        } else {
+            runCatching { Res.readBytes("files/emulator/$path") }.getOrNull()
+        }
+    }
+    val bundledImages = BundledAssetProvider { path ->
+        if (!path.isSafeRelativePath()) {
+            null
+        } else {
+            runCatching { Res.readBytes("files/emulator/images/$path") }.getOrNull()
+        }
+    }
+    return PrefixAssetProvider(
+        listOf(
+            // A guest image may be packaged with the app or dropped in later by the user, and
+            // the emulator should not care which.
+            "images" to FallbackAssetProvider(
+                listOf(
+                    FileAssetProvider(platformFileSystem, appStorageDir() / "images"),
+                    bundledImages,
+                ),
+            ),
+            "sideload" to FileAssetProvider(platformFileSystem, appStorageDir() / "sideload"),
+            "" to bundled,
+        ),
+    )
+}

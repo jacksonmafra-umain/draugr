@@ -32,7 +32,10 @@ class MemoryAsset(
         var written = 0L
         while (written < length) {
             val take = minOf(CHUNK.toLong(), length - written).toInt()
-            out.writeFully(bytes, (offset + written).toInt(), take)
+            val start = (offset + written).toInt()
+            // writeFully takes an end index, not a count. Passing a count here silently
+            // truncates every response past the first chunk.
+            out.writeFully(bytes, startIndex = start, endIndex = start + take)
             written += take
         }
     }
@@ -53,7 +56,7 @@ class FileAsset(
                 val want = minOf(CHUNK.toLong(), length - written).toInt()
                 val read = source.read(buffer, 0, want)
                 if (read == -1) break
-                out.writeFully(buffer, 0, read)
+                out.writeFully(buffer, startIndex = 0, endIndex = read)
                 written += read
             }
         }
@@ -82,6 +85,21 @@ class FileAssetProvider(
         if (!metadata.isRegularFile) return null
         val size = metadata.size ?: return null
         return FileAsset(fileSystem, target, contentTypeFor(path), size)
+    }
+}
+
+/**
+ * Tries each provider in order. Guest images can come either from the app bundle or, once
+ * sideloaded, from app storage, and the caller should not care which.
+ */
+class FallbackAssetProvider(
+    private val providers: List<AssetProvider>,
+) : AssetProvider {
+    override suspend fun open(path: String): AssetHandle? {
+        providers.forEach { provider ->
+            provider.open(path)?.let { return it }
+        }
+        return null
     }
 }
 
