@@ -54,6 +54,7 @@ fun CatalogScreen(
     machines: List<MachineSpec>,
     onBoot: (MachineSpec) -> Unit,
     onInspect: (MachineSpec) -> Unit,
+    onSelfTest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var revealed by remember { mutableStateOf(0) }
@@ -75,7 +76,9 @@ fun CatalogScreen(
         GlitchText(
             text = BOOT_LINES.first(),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+            modifier = Modifier
+                .clickable { onSelfTest() }
+                .padding(top = 24.dp, bottom = 8.dp),
         )
         BOOT_LINES.drop(1).take((revealed - 1).coerceAtLeast(0)).forEach { line ->
             Text(text = line, style = MaterialTheme.typography.bodyMedium, color = AccentText)

@@ -20,12 +20,14 @@ import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
+import com.umain.draugr.ui.screens.SelfTestScreen
 import com.umain.draugr.ui.theme.DangerText
 import com.umain.draugr.ui.theme.DraugrTheme
 import com.umain.draugr.ui.theme.MutedText
 
 private sealed interface Route {
     data object Catalog : Route
+    data object SelfTest : Route
     data class Detail(val spec: MachineSpec) : Route
 }
 
@@ -69,7 +71,10 @@ fun DraugrApp() {
                         machines = loaded,
                         onBoot = { route = Route.Detail(it) },
                         onInspect = { route = Route.Detail(it) },
+                        onSelfTest = { route = Route.SelfTest },
                     )
+
+                    Route.SelfTest -> SelfTestScreen(onBack = { route = Route.Catalog })
 
                     is Route.Detail -> MachineDetailScreen(
                         spec = current.spec,
