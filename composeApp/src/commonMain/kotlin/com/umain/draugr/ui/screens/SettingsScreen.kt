@@ -28,6 +28,7 @@ fun SettingsScreen(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
     onSelfTest: () -> Unit,
+    onCredits: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -88,6 +89,20 @@ fun SettingsScreen(
             Text(
                 text = "STARTS THE ASSET SERVER AND REPORTS CROSS-ORIGIN ISOLATION, " +
                     "SHAREDARRAYBUFFER, WASM THREADS AND RANGE SUPPORT.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MutedText,
+            )
+        }
+
+        BracketPanel(header = "ABOUT", modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = ">> CREDITS",
+                style = MaterialTheme.typography.titleMedium,
+                color = AccentText,
+                modifier = Modifier.clickable { onCredits() },
+            )
+            Text(
+                text = "THE EMULATORS, GUESTS AND LIBRARIES THIS IS BUILT ON, AND THEIR LICENCES.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MutedText,
             )

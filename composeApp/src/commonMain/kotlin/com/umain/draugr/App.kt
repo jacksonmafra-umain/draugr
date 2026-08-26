@@ -25,6 +25,7 @@ import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
 import com.umain.draugr.storage.SettingsStore
+import com.umain.draugr.ui.screens.CreditsScreen
 import com.umain.draugr.ui.screens.SelfTestScreen
 import com.umain.draugr.ui.screens.SettingsScreen
 import com.umain.draugr.ui.screens.SnapshotScreen
@@ -42,6 +43,7 @@ private sealed interface Route {
     data class Vm(val spec: MachineSpec) : Route
     data class Snapshots(val spec: MachineSpec) : Route
     data object Settings : Route
+    data object Credits : Route
 }
 
 /**
@@ -79,6 +81,7 @@ fun DraugrApp() {
             is Route.Vm -> Route.Catalog
             is Route.Snapshots -> Route.Vm(current.spec)
             Route.SelfTest -> Route.Settings
+            Route.Credits -> Route.Settings
             Route.Settings -> Route.Catalog
             Route.Catalog -> Route.Catalog
         }
@@ -129,8 +132,11 @@ fun DraugrApp() {
                             settingsStore.save(updated)
                         },
                         onSelfTest = { route = Route.SelfTest },
+                        onCredits = { route = Route.Credits },
                         onBack = { route = Route.Catalog },
                     )
+
+                    Route.Credits -> CreditsScreen(onBack = { route = Route.Settings })
 
                     is Route.Vm -> {
                         val scope = rememberCoroutineScope()

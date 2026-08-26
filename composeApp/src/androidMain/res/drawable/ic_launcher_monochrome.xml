@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon variant: one colour, so it is the rune alone with no chromatic offset. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:translateX="0" android:translateY="0">
+        <path android:pathData="M38,38 L54,54" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+        <path android:pathData="M38,70 L54,54" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+        <path android:pathData="M70,38 L54,54" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+        <path android:pathData="M70,70 L54,54" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+        <path android:pathData="M38,38 L38,70" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+        <path android:pathData="M70,38 L70,70" android:strokeColor="#FFFFFF" android:strokeWidth="4" />
+    </group>
+</vector>
