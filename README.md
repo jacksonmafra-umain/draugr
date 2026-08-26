@@ -9,9 +9,9 @@ web view.
 
 **Proof of concept. Local only. Not for store distribution.**
 
-| Catalog | Machine | Snapshots | Settings |
-|---|---|---|---|
-| ![Catalog](docs/screenshots/android-catalog.png) | ![FreeDOS running](docs/screenshots/android-machine.png) | ![Saved states](docs/screenshots/android-snapshots.png) | ![Settings](docs/screenshots/android-settings.png) |
+| Catalog | Machine | Detail | Snapshots | Settings |
+|---|---|---|---|---|
+| ![Catalog](docs/screenshots/android-catalog.png) | ![FreeDOS running](docs/screenshots/android-machine.png) | ![Machine detail](docs/screenshots/android-detail.png) | ![Saved states](docs/screenshots/android-snapshots.png) | ![Settings](docs/screenshots/android-settings.png) |
 
 Android above, a Galaxy A34 running FreeDOS through v86. The same build on iOS:
 
