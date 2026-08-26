@@ -55,6 +55,7 @@ kotlin {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.webkit)
+            implementation(libs.androidx.splashscreen)
             implementation(libs.kotlinx.coroutines.android)
         }
     }
