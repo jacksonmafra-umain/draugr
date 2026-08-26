@@ -63,6 +63,9 @@ class VmController(
     private val _geometry = MutableStateFlow(Geometry.UNKNOWN)
     val geometry: StateFlow<Geometry> = _geometry.asStateFlow()
 
+    private val _stats = MutableStateFlow(VmEvent.Stats(0L, 0L))
+    val stats: StateFlow<VmEvent.Stats> = _stats.asStateFlow()
+
     private var origin: String? = null
 
     private var started = false
@@ -203,6 +206,7 @@ class VmController(
                             }
                         }
                     }
+                    is VmEvent.Stats -> _stats.value = event
                     is VmEvent.ScreenResized ->
                         _geometry.value = Geometry(event.w, event.h, event.graphical)
                     is VmEvent.Fault -> {
