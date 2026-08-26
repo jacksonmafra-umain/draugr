@@ -36,6 +36,9 @@ fun draugrAssetProvider(): AssetProvider {
                 ),
             ),
             "sideload" to FileAssetProvider(platformFileSystem, appStorageDir() / "sideload"),
+            // Saved states are megabytes: the page fetches them over the loopback server
+            // rather than having them handed across the JS bridge as one giant string.
+            "snapshots" to FileAssetProvider(platformFileSystem, appStorageDir() / "snapshots"),
             "" to bundled,
         ),
     )
