@@ -21,7 +21,11 @@ object BridgeProtocol {
     private val json = Json { ignoreUnknownKeys = true }
 
     /** Builds the `window.DRAUGR.boot(...)` argument for a machine. */
-    fun bootConfig(spec: MachineSpec, serverOrigin: String): String {
+    fun bootConfig(
+        spec: MachineSpec,
+        serverOrigin: String,
+        networkRelayUrl: String? = null,
+    ): String {
         fun url(path: String?) = path?.let { "$serverOrigin/$it" }
         return buildJsonObject {
             put("id", spec.id)
@@ -42,6 +46,8 @@ object BridgeProtocol {
             url(spec.assets.fda)?.let { put("fda", it) }
             url(spec.assets.cdrom)?.let { put("cdrom", it) }
             url(spec.assets.stateImage)?.let { put("stateImage", it) }
+            spec.cmdline?.let { put("cmdline", it) }
+            networkRelayUrl?.takeIf { it.isNotBlank() }?.let { put("networkRelayUrl", it) }
         }.toString()
     }
 
@@ -55,8 +61,11 @@ object BridgeProtocol {
     fun sendTextCall(text: String): String =
         "window.DRAUGR.sendText(${quote(text)});"
 
-    fun bootCall(spec: MachineSpec, serverOrigin: String): String =
-        "window.DRAUGR.boot(${bootConfig(spec, serverOrigin)});"
+    fun bootCall(
+        spec: MachineSpec,
+        serverOrigin: String,
+        networkRelayUrl: String? = null,
+    ): String = "window.DRAUGR.boot(${bootConfig(spec, serverOrigin, networkRelayUrl)});"
 
     /** Translates one JSON event from the page into a [VmEvent], or null if unrecognised. */
     fun parseEvent(raw: String): VmEvent? {

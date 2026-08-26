@@ -28,6 +28,21 @@ class CatalogRepository(
         return catalog.copy(
             machines = catalog.machines.map { spec ->
                 if (spec.bundled) return@map spec
+
+                // A machine whose assets already point into sideload/ (the security console
+                // ships as kernel + initramfs + rootfs) is promoted once every one of those
+                // files is on disk. Nothing is rewritten; the paths are already correct.
+                val declared = spec.assets.sideloadPaths()
+                if (declared.isNotEmpty()) {
+                    return@map if (declared.all { store.hasServerAsset(it) }) {
+                        spec.copy(bundled = true, note = "SIDELOADED")
+                    } else {
+                        spec
+                    }
+                }
+
+                // Otherwise it is a single bring-your-own disk (win95, win2000): find the image
+                // the user dropped in and point the disk at it.
                 val image = store.imageFor(spec.id) ?: return@map spec
                 spec.copy(
                     bundled = true,

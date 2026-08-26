@@ -161,6 +161,17 @@ Ten entries in `catalog.json`. Bundled images are fetched at build time by
 | Windows 95 | x86 | Graphical | v86 | 64MB | **no** | Proprietary — sideload only |
 | Windows 2000 | x86 | Graphical | v86 | 512MB | **no** | Proprietary — sideload only |
 
+### A security console, and going online
+
+There is a console-only Alpine x86 guest carrying `nmap`, `masscan`, `tcpdump`, `tshark`,
+`hydra`, `sqlmap`, `nikto`, `socat`, `radare2` and `aircrack-ng`. It is built and sideloaded,
+not bundled — `emulator/SECURITY-IMAGE.md` has the how, and states plainly that it does not yet
+reach a shell on the phone tested because of a v86 memory ceiling in a mobile WebView.
+
+Guests are offline unless a WebSocket relay is configured, which is the one switch that ends the
+no-outbound-requests guarantee. It is off by default; `emulator/NETWORK-RELAY.md` covers the
+relay and what is and is not verified.
+
 Emulator payload: **v86** is BSD-2-Clause, **SeaBIOS** and **VGABIOS** are LGPLv3, **TinyEMU**
 is MIT, **Courier Prime** is SIL OFL. Licence texts are in `third_party/`.
 
