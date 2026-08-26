@@ -28,6 +28,9 @@ expect class VmBridge() {
     suspend fun hasMachine(): Boolean
     suspend fun sendKeys(codes: IntArray)
     suspend fun sendText(text: String)
+
+    /** Glyph scale for a text guest, as a multiplier over fit-to-width. */
+    suspend fun setTextZoom(factor: Float)
     suspend fun pause()
     suspend fun resume()
     suspend fun snapshot(): ByteArray

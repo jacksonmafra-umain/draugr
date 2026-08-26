@@ -92,6 +92,10 @@
   var BASE_FONT_PX = 16;
   var LINE_HEIGHT = 1.05;
 
+  // 1.0 means "fit the whole 80-column screen". Above that the glyphs grow and the guest is
+  // panned instead, because the column count is fixed by the guest's video mode.
+  var textZoom = 1;
+
   function probeRowWidth(container, fontPx, columns, fontFamily) {
     var probe = document.createElement('span');
     probe.style.position = 'absolute';
@@ -152,9 +156,15 @@
     if (!width || !height) return;
 
     // A hair under a perfect fit: sub-pixel advances round up and clip the last column.
-    var scale = Math.min(window.innerWidth / width, window.innerHeight / height) * 0.99;
+    var fit = Math.min(window.innerWidth / width, window.innerHeight / height) * 0.99;
+    var scale = fit * textZoom;
     if (!(scale > 0) || !isFinite(scale)) return;
     text.style.transform = 'scale(' + scale + ')';
+
+    // Panning is only offered when there is something off-screen to pan to.
+    var overflows = width * scale > window.innerWidth || height * scale > window.innerHeight;
+    container.style.overflow = overflows ? 'auto' : 'hidden';
+    container.style.webkitOverflowScrolling = 'touch';
   };
 
   V86Engine.prototype.boot = function (config) {
@@ -499,6 +509,14 @@
         .then(function () {
           return 'ok';
         });
+    },
+
+    /** 1.0 fits the whole screen; larger grows the glyphs and lets the guest be panned. */
+    setTextZoom: function (factor) {
+      var value = parseFloat(factor);
+      if (!(value > 0) || !isFinite(value)) return;
+      textZoom = value;
+      if (active && active.fitTextScreen) active.fitTextScreen();
     },
 
     onEvent: function (listener) {

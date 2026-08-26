@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -32,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.catalog.formatBytes
+import com.umain.draugr.storage.formatZoom
+import com.umain.draugr.storage.nextTerminalZoom
 import com.umain.draugr.ui.components.BracketPanel
 import com.umain.draugr.ui.components.GlitchText
 import com.umain.draugr.ui.components.PanelState
@@ -59,6 +62,7 @@ fun VmScreen(
     onSnapshot: () -> Unit,
     onRestore: () -> Unit,
     onOpenSnapshots: () -> Unit,
+    onZoomChange: (Float) -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -66,6 +70,7 @@ fun VmScreen(
     val log by controller.log.collectAsState()
     val geometry by controller.geometry.collectAsState()
     val stats by controller.stats.collectAsState()
+    val zoom by controller.zoom.collectAsState()
 
     var uptimeSeconds by remember { mutableStateOf(0L) }
     var logExpanded by remember { mutableStateOf(true) }
@@ -97,7 +102,10 @@ fun VmScreen(
         else -> PanelState.IDLE
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    val keyboardMaxHeight = maxHeight * KEYBOARD_HEIGHT_FRACTION
+
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         BracketPanel(
             header = "MACHINE",
             state = panelState,
@@ -151,33 +159,29 @@ fun VmScreen(
             // above and below the output.
             contentAlignment = Alignment.TopCenter,
         ) {
-            // Letterbox against whichever axis is tighter. A bare aspectRatio() is free to
-            // exceed the box height, which in landscape drew the guest straight over the
-            // keyboard. A text guest has no pixel size, so it gets 4:3 and the page scales its
-            // glyphs to fit.
-            val ratio = geometry.aspectRatio ?: TEXT_MODE_RATIO
-            val boxRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else ratio
+            // A graphical guest is letterboxed to its own pixel ratio, against whichever
+            // axis is tighter: a bare aspectRatio() may exceed the box height, which in
+            // landscape drew the guest straight over the keyboard.
+            //
+            // A text guest has no pixel size at all, and the page already scales its glyphs to
+            // whatever surface it gets. Letterboxing one only threw away vertical space and
+            // made the type smaller than it needed to be, so it takes the whole box.
+            val ratio = geometry.aspectRatio
             VmSurface(
                 bridge = controller.bridge,
-                modifier = if (ratio >= boxRatio) {
-                    Modifier.fillMaxWidth().aspectRatio(ratio)
+                modifier = if (geometry.graphical && ratio != null) {
+                    val boxRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else ratio
+                    if (ratio >= boxRatio) {
+                        Modifier.fillMaxWidth().aspectRatio(ratio)
+                    } else {
+                        Modifier.fillMaxHeight().aspectRatio(ratio)
+                    }
                 } else {
-                    Modifier.fillMaxHeight().aspectRatio(ratio)
+                    Modifier.size(width = maxWidth, height = maxHeight)
                 },
             )
         }
 
-            // The keyboard floats over the guest rather than stacking under it. Stacking
-            // overflowed the column in landscape and painted the guest across the keys.
-            if (keyboardVisible) {
-                TerminalKeyboard(
-                    onCodes = { codes -> controller.sendKeys(codes) },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .background(Background.copy(alpha = 0.94f))
-                        .padding(4.dp),
-                )
-            }
         }
 
         if (!keyboardVisible) {
@@ -240,7 +244,18 @@ fun VmScreen(
                 )
             }
         }
+        }
 
+        if (keyboardVisible) {
+            // A sibling of the guest, not an overlay: overlaid, it hid the guest's last rows.
+            // Capped so the guest always keeps usable height; the page refits to what is left.
+            TerminalKeyboard(
+                onCodes = { codes -> controller.sendKeys(codes) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = keyboardMaxHeight)
+                    .padding(top = 4.dp),
+            )
         }
 
         LazyRow(
@@ -257,6 +272,15 @@ fun VmScreen(
                     if (state is VmState.Suspended) controller.resume() else controller.pause()
                 }
             }
+            item {
+                // Text guests are locked to 80 columns, so bigger glyphs mean panning rather
+                // than more room. The label states the factor so it is never a mystery.
+                Action("ZOOM ${formatZoom(zoom)}", if (zoom > 1f) AccentText else PrimaryText) {
+                    val next = nextTerminalZoom(zoom)
+                    controller.setZoom(next)
+                    onZoomChange(next)
+                }
+            }
             item { Action("SNAP", PrimaryText) { onSnapshot() } }
             item { Action("STATES", PrimaryText) { onOpenSnapshots() } }
             item { Action("RESET", PrimaryText) { controller.reset() } }
@@ -268,7 +292,11 @@ fun VmScreen(
             }
         }
     }
+    }
 }
+
+/** The keyboard never takes more than this much of the screen, so the guest stays visible. */
+private const val KEYBOARD_HEIGHT_FRACTION = 0.42f
 
 @Composable
 private fun Action(label: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
@@ -293,9 +321,6 @@ private fun formatIps(value: Long): String = when {
     value >= 1_000L -> "${value / 1_000L}K"
     else -> value.toString()
 }
-
-/** Text guests are 80x25 characters; 4:3 is the closest thing to their real shape. */
-private const val TEXT_MODE_RATIO = 4f / 3f
 
 private fun formatUptime(seconds: Long): String {
     val h = seconds / 3600

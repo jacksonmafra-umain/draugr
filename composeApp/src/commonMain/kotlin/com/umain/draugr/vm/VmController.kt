@@ -66,6 +66,9 @@ class VmController(
     private val _stats = MutableStateFlow(VmEvent.Stats(0L, 0L))
     val stats: StateFlow<VmEvent.Stats> = _stats.asStateFlow()
 
+    private val _zoom = MutableStateFlow(1f)
+    val zoom: StateFlow<Float> = _zoom.asStateFlow()
+
     private var origin: String? = null
 
     private var started = false
@@ -207,8 +210,11 @@ class VmController(
                         }
                     }
                     is VmEvent.Stats -> _stats.value = event
-                    is VmEvent.ScreenResized ->
+                    is VmEvent.ScreenResized -> {
                         _geometry.value = Geometry(event.w, event.h, event.graphical)
+                        // A mode change refits the screen, which resets the applied scale.
+                        if (_zoom.value != 1f) setZoom(_zoom.value)
+                    }
                     is VmEvent.Fault -> {
                         appendLog(":: ${event.message}")
                         _state.value = VmState.Halted(event.message)
@@ -251,6 +257,11 @@ class VmController(
     }
 
     fun sendKeys(codes: IntArray) = scope.launch { bridge.sendKeys(codes) }
+
+    fun setZoom(factor: Float) {
+        _zoom.value = factor
+        scope.launch { runCatching { bridge.setTextZoom(factor) } }
+    }
 
     fun sendText(text: String) = scope.launch { bridge.sendText(text) }
 

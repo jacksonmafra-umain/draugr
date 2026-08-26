@@ -116,12 +116,19 @@ fun DraugrApp() {
                         // trip to the state list.
                         val controller = rememberVmController(current.spec)
                         LaunchedEffect(controller) { controller.start() }
+                        LaunchedEffect(controller, settings.terminalZoom) {
+                            controller.setZoom(settings.terminalZoom)
+                        }
                         VmScreen(
                             spec = current.spec,
                             controller = controller,
                             onSnapshot = { controller.requestSnapshot() },
                             onRestore = { controller.requestRestoreLatest() },
                             onOpenSnapshots = { route = Route.Snapshots(current.spec) },
+                            onZoomChange = { factor ->
+                                settings = settings.copy(terminalZoom = factor)
+                                settingsStore.save(settings)
+                            },
                             onExit = {
                                 controllers.remove(current.spec.id)
                                 route = Route.Catalog
