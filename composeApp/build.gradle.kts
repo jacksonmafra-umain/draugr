@@ -16,7 +16,9 @@ kotlin {
         }
     }
 
-    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { target ->
+    // Compose Multiplatform 1.12 no longer publishes iosX64 artifacts, so the
+    // Intel simulator is out. Device plus Apple Silicon simulator only.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
         target.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
