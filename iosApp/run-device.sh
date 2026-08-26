@@ -6,8 +6,8 @@
 # must be one Xcode has an account for, not merely one with a certificate in the keychain.
 #
 # Usage:
-#   ./iosApp/run-device.sh                 # first available paired device
-#   ./iosApp/run-device.sh "Qa iPhone 13"  # by name fragment
+#   ./iosApp/run-device.sh                 # first device that actually builds
+#   ./iosApp/run-device.sh "Qa iPhone 13"  # restrict to devices matching a name fragment
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,60 +16,84 @@ build_dir="${DRAUGR_DEVICE_BUILD_DIR:-$root/build/ios-device}"
 
 say() { printf '>> %s\n' "$1"; }
 
-# devicectl reports a device as unavailable for a few seconds after any operation on it, so a
-# single listing is not evidence that nothing is connected.
-devices=""
+# Neither tool can be trusted on its own about whether a device is usable:
+#
+#   devicectl list devices        keeps listing a dropped wireless pairing as `available (paired)`
+#   xcodebuild -showdestinations  can report a device with no `error:` and then fail the build
+#                                 with "developer disk image could not be mounted"
+#
+# Only attempting the build settles it, so every candidate is tried in turn.
+say "looking for a device"
+candidates=""
 for attempt in 1 2 3 4 5 6; do
-  devices="$(xcrun devicectl list devices 2>/dev/null | grep 'available (paired)' || true)"
-  if [ -n "$filter" ]; then
-    matched="$(printf '%s\n' "$devices" | grep -i -- "$filter" || true)"
-  else
-    matched="$devices"
-  fi
-  [ -n "$matched" ] && break
+  candidates="$(
+    xcodebuild -project "$root/iosApp/iosApp.xcodeproj" -scheme iosApp -showdestinations 2>/dev/null |
+      grep 'platform:iOS,' |
+      grep -v 'placeholder' |
+      { [ -n "$filter" ] && grep -i -- "$filter" || cat; }
+  )"
+  # Devices with no error first: they are the likeliest to work.
+  candidates="$(printf '%s\n' "$candidates" | grep -v 'error:'; printf '%s\n' "$candidates" | grep 'error:' || true)"
+  candidates="$(printf '%s\n' "$candidates" | sed '/^$/d')"
+  [ -n "$candidates" ] && break
   [ "$attempt" -lt 6 ] && sleep 5
 done
-devices="$matched"
 
-if [ -z "$devices" ]; then
-  cat >&2 <<'MSG'
-No paired iPhone is available${filter:+ matching "$filter"}.
+if [ -z "$candidates" ]; then
+  cat >&2 <<MSG
+No iPhone is paired${filter:+ matching "$filter"}.
 
   - Connect it by cable, or put it on the same network as this Mac
   - Unlock it and trust this computer
   - Settings > Privacy & Security > Developer Mode must be on
 
-`xcrun devicectl list devices` shows the current state. A device listed as `unavailable` is
-paired but not reachable right now, which is the usual case for a wireless pairing that dropped.
+$(xcrun devicectl list devices 2>/dev/null | tail -n +2)
 MSG
   exit 1
 fi
 
-# Columns are separated by runs of spaces: "name   hostname   identifier   state   model".
-row="$(printf '%s\n' "$devices" | head -1)"
-identifier="$(printf '%s' "$row" | awk '{for (i=1;i<=NF;i++) if ($i ~ /coredevice\.local$/) print $(i+1)}')"
-name="$(printf '%s' "$row" | sed -E 's/[[:space:]]{2,}.*//')"
-say "device: $name ($identifier)"
+app=""
+identifier=""
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  udid="$(printf '%s' "$line" | sed -E 's/.*id:([^,}]+).*/\1/' | tr -d ' ')"
+  name="$(printf '%s' "$line" | sed -E 's/.*name:([^,}]*).*/\1/' | sed -E 's/[[:space:]]+$//')"
 
-# xcodebuild wants the hardware UDID, which devicectl does not print. `|| true` matters: under
-# `set -e` a failing command substitution aborts the script with no message at all.
-udid="$(xcrun xctrace list devices 2>/dev/null | grep -m1 -F "$name" | sed -E 's/.*\(([0-9A-Fa-f-]{25,})\).*/\1/' || true)"
-if [ -z "$udid" ]; then
-  say "falling back to 'generic/platform=iOS'"
-  destination="generic/platform=iOS"
-else
-  destination="platform=iOS,id=$udid"
+  say "trying $name"
+  if ! xcodebuild \
+    -project "$root/iosApp/iosApp.xcodeproj" \
+    -scheme iosApp \
+    -configuration Debug \
+    -destination "platform=iOS,id=$udid" \
+    -destination-timeout 30 \
+    -derivedDataPath "$build_dir" \
+    -allowProvisioningUpdates \
+    build >"$build_dir.log" 2>&1
+  then
+    say "$name did not work, see $build_dir.log"
+    continue
+  fi
+
+  identifier="$(
+    xcrun devicectl list devices 2>/dev/null |
+      grep -F "$name" |
+      awk '{for (i=1;i<=NF;i++) if ($i ~ /coredevice\.local$/) print $(i+1)}' |
+      head -1
+  )"
+  if [ -z "$identifier" ]; then
+    say "$name built but devicectl does not list it for install"
+    continue
+  fi
+  say "built for $name"
+  break
+done <<EOF_CANDIDATES
+$candidates
+EOF_CANDIDATES
+
+if [ -z "$identifier" ]; then
+  printf 'Every candidate device failed. Last build log: %s\n' "$build_dir.log" >&2
+  exit 1
 fi
-
-say "building"
-xcodebuild \
-  -project "$root/iosApp/iosApp.xcodeproj" \
-  -scheme iosApp \
-  -configuration Debug \
-  -destination "$destination" \
-  -derivedDataPath "$build_dir" \
-  -allowProvisioningUpdates \
-  build >/dev/null
 
 app="$build_dir/Build/Products/Debug-iphoneos/DRAUGR.app"
 say "installing $app"
