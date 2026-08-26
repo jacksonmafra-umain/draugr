@@ -29,6 +29,11 @@ object BridgeProtocol {
             put("cpu", spec.cpu)
             put("memMb", spec.memMb)
             put("vgaMemMb", spec.vgaMemMb)
+            put("ui", spec.ui.name)
+            if (spec.engine == com.umain.draugr.catalog.Engine.TINYEMU) {
+                put("configUrl", "$serverOrigin/${TinyEmuConfig.pathFor(spec)}")
+                put("cmdline", TinyEmuConfig.defaultCmdline(spec))
+            }
             url(spec.assets.bios)?.let { put("bios", it) }
             url(spec.assets.vgabios)?.let { put("vgabios", it) }
             url(spec.assets.kernel)?.let { put("kernel", it) }
