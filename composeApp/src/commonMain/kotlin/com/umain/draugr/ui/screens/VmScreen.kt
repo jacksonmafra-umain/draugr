@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -33,6 +35,7 @@ import com.umain.draugr.ui.components.GlitchText
 import com.umain.draugr.ui.components.PanelState
 import com.umain.draugr.ui.components.Stat
 import com.umain.draugr.ui.components.StatBar
+import com.umain.draugr.ui.components.TerminalKeyboard
 import com.umain.draugr.ui.theme.AccentText
 import com.umain.draugr.ui.theme.Background
 import com.umain.draugr.ui.theme.BorderColorAccent
@@ -62,6 +65,12 @@ fun VmScreen(
 
     var uptimeSeconds by remember { mutableStateOf(0L) }
     var logExpanded by remember { mutableStateOf(true) }
+    var keyboardVisible by remember { mutableStateOf(false) }
+
+    // The keyboard and an expanded log cannot both have the room they want.
+    LaunchedEffect(keyboardVisible) {
+        if (keyboardVisible) logExpanded = false
+    }
 
     LaunchedEffect(state.label) {
         if (state is VmState.Running) {
@@ -119,18 +128,41 @@ fun VmScreen(
                 .padding(vertical = 8.dp)
                 .background(Background)
                 .border(1.dp, BorderColorAccent),
+        ) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-            // The surface is always letterboxed to a ratio. A text guest has no pixel size,
-            // so it gets 4:3 and the page scales its glyphs to fit; a graphical guest gets its
-            // own ratio. Sizing the web view by fill or matchParentSize measured it at zero
-            // height inside this weighted box.
+            // Letterbox against whichever axis is tighter. A bare aspectRatio() is free to
+            // exceed the box height, which in landscape drew the guest straight over the
+            // keyboard. A text guest has no pixel size, so it gets 4:3 and the page scales its
+            // glyphs to fit.
+            val ratio = geometry.aspectRatio ?: TEXT_MODE_RATIO
+            val boxRatio = if (maxHeight > 0.dp) maxWidth / maxHeight else ratio
             VmSurface(
                 bridge = controller.bridge,
-                modifier = Modifier.aspectRatio(geometry.aspectRatio ?: TEXT_MODE_RATIO),
+                modifier = if (ratio >= boxRatio) {
+                    Modifier.fillMaxWidth().aspectRatio(ratio)
+                } else {
+                    Modifier.fillMaxHeight().aspectRatio(ratio)
+                },
             )
         }
 
+            // The keyboard floats over the guest rather than stacking under it. Stacking
+            // overflowed the column in landscape and painted the guest across the keys.
+            if (keyboardVisible) {
+                TerminalKeyboard(
+                    onCodes = { codes -> controller.sendKeys(codes) },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .background(Background.copy(alpha = 0.94f))
+                        .padding(4.dp),
+                )
+            }
+        }
+
+        if (!keyboardVisible) {
         val suspended = state as? VmState.Suspended
         if (suspended?.reason == SuspendReason.HOST_TERMINATED) {
             BracketPanel(
@@ -189,10 +221,15 @@ fun VmScreen(
             }
         }
 
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
+            Action("KEYS", if (keyboardVisible) AccentText else PrimaryText) {
+                keyboardVisible = !keyboardVisible
+            }
             Action("PAUSE", AccentText) {
                 if (state is VmState.Suspended) controller.resume() else controller.pause()
             }

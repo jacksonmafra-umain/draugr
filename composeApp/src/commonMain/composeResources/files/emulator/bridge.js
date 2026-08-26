@@ -176,6 +176,14 @@
     window.addEventListener('resize', function () { self.fitTextScreen(); });
     window.addEventListener('draugr-resize', function () { self.fitTextScreen(); });
 
+    // A web view can be resized without firing window.resize, for instance when the host
+    // rotates and re-letterboxes the surface. Watch the element itself.
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(function () { self.fitTextScreen(); })
+        .observe(document.getElementById('screen_container'));
+      new ResizeObserver(function () { self.fitTextScreen(); }).observe(document.documentElement);
+    }
+
     this.emulator.add_listener('emulator-stopped', function () {
       emit({ type: 'state', state: 'suspended' });
     });
