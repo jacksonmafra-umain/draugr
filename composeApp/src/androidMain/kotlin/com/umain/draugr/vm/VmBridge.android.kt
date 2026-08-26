@@ -41,9 +41,14 @@ actual class VmBridge actual constructor() {
         webView = view
     }
 
-    internal fun detach() {
+    /** The live view, so the surface can re-adopt it instead of building a new page. */
+    internal fun retainedView(): WebView? = webView
+
+    actual fun dispose() {
+        val view = webView
         webView = null
         ready.value = false
+        view?.destroy()
     }
 
     /**
@@ -124,8 +129,12 @@ actual class VmBridge actual constructor() {
 
     actual suspend fun sendText(text: String) = evaluate(BridgeProtocol.sendTextCall(text))
 
-    actual suspend fun setTextZoom(factor: Float) =
+    actual suspend fun setTextZoom(factor: Float) {
+        // Zoom is applied on entry, which can beat the page's own load. Waiting for the bridge
+        // to report itself avoids a `setTextZoom of undefined` in the console.
+        ready.first { it }
         evaluate("window.DRAUGR.setTextZoom($factor);")
+    }
 
     actual suspend fun pause() = evaluate("window.DRAUGR.pause();")
 

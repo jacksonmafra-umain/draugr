@@ -38,4 +38,10 @@ expect class VmBridge() {
 
     /** PNG bytes of the guest framebuffer, or null when the guest is in text mode. */
     suspend fun screenshot(): ByteArray?
+
+    /**
+     * Tears down the web view for good. Leaving the machine screen must not do this: the guest
+     * lives inside the page, so destroying the view kills the machine.
+     */
+    fun dispose()
 }
