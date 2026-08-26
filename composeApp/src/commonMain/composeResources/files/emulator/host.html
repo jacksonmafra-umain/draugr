@@ -39,7 +39,10 @@
       line-height: 1.05;
       white-space: pre;
       transform-origin: top left;
-      overflow: hidden;
+      /* The rows are wider than the container before scaling. Clipping here cut the guest in
+         half; the container clips instead, and by then the transform has scaled it to fit. */
+      overflow: visible;
+      width: max-content;
     }
 
     #screen_container {

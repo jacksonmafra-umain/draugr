@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -68,7 +69,8 @@ fun VmScreen(
 
     var uptimeSeconds by remember { mutableStateOf(0L) }
     var logExpanded by remember { mutableStateOf(true) }
-    var keyboardVisible by remember { mutableStateOf(false) }
+    // A machine you cannot type into is not much use, so the keyboard starts open.
+    var keyboardVisible by remember { mutableStateOf(true) }
 
     // The keyboard and an expanded log cannot both have the room they want.
     LaunchedEffect(keyboardVisible) {
@@ -106,12 +108,21 @@ fun VmScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlitchText(text = spec.displayName, style = MaterialTheme.typography.titleMedium)
+                GlitchText(
+                    text = spec.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                // A fault message can run to a whole sentence. Unbounded, it widened the panel
+                // past the screen and took the frame off with it; the full text is in the log.
                 Text(
-                    text = (state as? VmState.Halted)?.error?.let { "[HALTED: $it]" }
-                        ?: "[${state.label}]",
+                    text = "[${state.label}]",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (state is VmState.Halted) DangerText else AccentText,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
             StatBar(
@@ -136,7 +147,9 @@ fun VmScreen(
         ) {
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
+            // Anchored to the top: a letterboxed guest centred in a tall box left dead bands
+            // above and below the output.
+            contentAlignment = Alignment.TopCenter,
         ) {
             // Letterbox against whichever axis is tighter. A bare aspectRatio() is free to
             // exceed the box height, which in landscape drew the guest straight over the
@@ -219,31 +232,39 @@ fun VmScreen(
                 }
             } else {
                 Text(
-                    text = log.lastOrNull() ?: ":: NO OUTPUT YET",
+                    text = (state as? VmState.Halted)?.error?.let { ":: $it" }
+                        ?: log.lastOrNull()
+                        ?: ":: NO OUTPUT YET",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MutedText,
+                    color = if (state is VmState.Halted) DangerText else MutedText,
                 )
             }
         }
 
         }
 
-        Row(
+        LazyRow(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Action("KEYS", if (keyboardVisible) AccentText else PrimaryText) {
-                keyboardVisible = !keyboardVisible
+            item {
+                Action("KEYS", if (keyboardVisible) AccentText else PrimaryText) {
+                    keyboardVisible = !keyboardVisible
+                }
             }
-            Action("PAUSE", AccentText) {
-                if (state is VmState.Suspended) controller.resume() else controller.pause()
+            item {
+                Action("PAUSE", AccentText) {
+                    if (state is VmState.Suspended) controller.resume() else controller.pause()
+                }
             }
-            Action("SNAP", PrimaryText) { onSnapshot() }
-            Action("STATES", PrimaryText) { onOpenSnapshots() }
-            Action("RESET", PrimaryText) { controller.reset() }
-            Action("HALT", DangerText) {
-                controller.halt()
-                onExit()
+            item { Action("SNAP", PrimaryText) { onSnapshot() } }
+            item { Action("STATES", PrimaryText) { onOpenSnapshots() } }
+            item { Action("RESET", PrimaryText) { controller.reset() } }
+            item {
+                Action("HALT", DangerText) {
+                    controller.halt()
+                    onExit()
+                }
             }
         }
     }
@@ -255,6 +276,8 @@ private fun Action(label: String, color: androidx.compose.ui.graphics.Color, onC
         text = label,
         style = MaterialTheme.typography.labelSmall,
         color = color,
+        maxLines = 1,
+        softWrap = false,
         modifier = Modifier
             .border(1.dp, color.copy(alpha = 0.4f))
             .clickable { onClick() }
