@@ -56,6 +56,7 @@ fun VmScreen(
     controller: VmController,
     onSnapshot: () -> Unit,
     onRestore: () -> Unit,
+    onOpenSnapshots: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -105,7 +106,8 @@ fun VmScreen(
             ) {
                 GlitchText(text = spec.displayName, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = "[${state.label}]",
+                    text = (state as? VmState.Halted)?.error?.let { "[HALTED: $it]" }
+                        ?: "[${state.label}]",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (state is VmState.Halted) DangerText else AccentText,
                 )
@@ -233,7 +235,8 @@ fun VmScreen(
             Action("PAUSE", AccentText) {
                 if (state is VmState.Suspended) controller.resume() else controller.pause()
             }
-            Action("SNAPSHOT", PrimaryText) { onSnapshot() }
+            Action("SNAP", PrimaryText) { onSnapshot() }
+            Action("STATES", PrimaryText) { onOpenSnapshots() }
             Action("RESET", PrimaryText) { controller.reset() }
             Action("HALT", DangerText) {
                 controller.halt()
