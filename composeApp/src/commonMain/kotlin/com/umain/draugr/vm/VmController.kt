@@ -12,6 +12,7 @@ import com.umain.draugr.storage.SnapshotStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,6 +70,13 @@ class VmController(
     private val _zoom = MutableStateFlow(1f)
     val zoom: StateFlow<Float> = _zoom.asStateFlow()
 
+    /**
+     * Seconds the guest has been running. Owned here rather than by the screen: the machine
+     * outlives its screen, and a counter kept in the UI restarted every time you came back.
+     */
+    private val _uptimeSeconds = MutableStateFlow(0L)
+    val uptimeSeconds: StateFlow<Long> = _uptimeSeconds.asStateFlow()
+
     private var origin: String? = null
 
     private var started = false
@@ -80,6 +88,7 @@ class VmController(
     fun start() {
         if (started) return
         started = true
+        trackUptime()
         observeLifecycle()
         scope.launch {
             runCatching { server.start() }
@@ -92,6 +101,20 @@ class VmController(
                 .onFailure { failure ->
                     _state.value = VmState.Halted(failure.message ?: "SERVER DID NOT START")
                 }
+        }
+    }
+
+    private fun trackUptime() {
+        scope.launch {
+            while (true) {
+                val current = _state.value
+                _uptimeSeconds.value = if (current is VmState.Running) {
+                    (nowInstant() - current.since).inWholeSeconds
+                } else {
+                    _uptimeSeconds.value
+                }
+                delay(1000)
+            }
         }
     }
 
@@ -287,6 +310,7 @@ class VmController(
     fun halt() {
         started = false
         _state.value = VmState.Halted(error = null)
+        bridge.dispose()
         lifecycle.dispose()
         server.stop()
         scope.cancel()
