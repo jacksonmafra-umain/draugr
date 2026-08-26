@@ -1,0 +1,32 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+
+# Emulator build outputs that must be produced locally
+emulator/tinyemu/build/
+emulator/vendor/**/*.tmp
+
+# Guest disk images are never committed
+*.img
+*.qcow2
+*.vhd
+*.vmdk
+*.iso
