@@ -125,7 +125,9 @@
     if (config.initrd) {
       options.initrd = { url: config.initrd, async: false };
     }
-    if (config.stateImage) {
+    if (config.initialStateBuffer) {
+      options.initial_state = { buffer: config.initialStateBuffer };
+    } else if (config.stateImage) {
       options.initial_state = { url: config.stateImage };
     }
 
@@ -236,6 +238,9 @@
   };
 
   V86Engine.prototype.screenshot = function () {
+    // In text mode the canvas exists but is blank, so capturing it would store a black
+    // rectangle and claim it was a framebuffer.
+    if (!this.graphical) return null;
     var canvas = document.querySelector('#screen_container canvas');
     if (!canvas || !canvas.width) return null;
     return canvas.toDataURL('image/png');
@@ -263,6 +268,11 @@
 
     boot: function (config) {
       try {
+        // Booting twice would leave two machines fighting over the same screen.
+        if (active) {
+          fail('boot', new Error('a machine is already running'));
+          return;
+        }
         var name = (config.engine || 'v86').toLowerCase();
         var Engine = engines[name];
         if (!Engine) {
@@ -274,6 +284,11 @@
       } catch (error) {
         fail('boot', error);
       }
+    },
+
+    /** True once a machine exists in this page, which decides restore versus cold boot. */
+    hasMachine: function () {
+      return active !== null;
     },
 
     sendKeys: function (codes) {
@@ -344,6 +359,30 @@
         bytes[i] = binary.charCodeAt(i);
       }
       return window.DRAUGR.restore(bytes.buffer);
+    },
+
+    /**
+     * Cold start straight into a saved state, fetched from the local server. Used after the host
+     * process has been killed, when the page is new and there is no machine to restore into.
+     */
+    bootWithStateUrl: function (config, url) {
+      config.stateImage = url;
+      window.DRAUGR.boot(config);
+    },
+
+    /** Restores into the machine already in this page, fetching the state over HTTP. */
+    restoreFromUrl: function (url) {
+      return fetch(url)
+        .then(function (response) {
+          if (!response.ok) throw new Error('state fetch failed: ' + response.status);
+          return response.arrayBuffer();
+        })
+        .then(function (buffer) {
+          return window.DRAUGR.restore(buffer);
+        })
+        .then(function () {
+          return 'ok';
+        });
     },
 
     onEvent: function (listener) {

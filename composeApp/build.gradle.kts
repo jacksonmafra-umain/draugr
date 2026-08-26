@@ -45,6 +45,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okio.fakefilesystem)
         }
         androidUnitTest.dependencies {
             implementation(libs.ktor.server.test.host)

@@ -5,7 +5,12 @@ import com.umain.draugr.platform.HostLifecycle
 import com.umain.draugr.platform.platformMemoryCeilingMb
 import com.umain.draugr.server.AssetServer
 import com.umain.draugr.server.draugrAssetProvider
+import com.umain.draugr.storage.SnapshotEntry
+import com.umain.draugr.storage.SnapshotStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,10 +22,15 @@ import kotlinx.coroutines.launch
  */
 class VmController(
     spec: MachineSpec,
-    private val scope: CoroutineScope,
+    /**
+     * Its own scope, not a composition scope: the controller outlives the screen so that a trip
+     * to the state list does not tear down a running guest.
+     */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     val bridge: VmBridge = VmBridge(),
     private val server: AssetServer = AssetServer(draugrAssetProvider()),
     private val lifecycle: HostLifecycle = HostLifecycle(),
+    private val snapshots: SnapshotStore = SnapshotStore(),
 ) {
     /**
      * Asking for more memory than the platform tolerates does not fail gracefully: on iOS the
@@ -34,7 +44,7 @@ class VmController(
     val memoryWasClamped: Boolean = this.spec.memMb != spec.memMb
 
     /** Held so a guest can come back after the host process is killed under memory pressure. */
-    private var lastSnapshot: ByteArray? = null
+    private var lastSnapshotEntry: SnapshotEntry? = null
 
     /**
      * Why we asked the guest to stop. Pausing makes the engine report a plain "suspended"
@@ -52,7 +62,15 @@ class VmController(
 
     private var origin: String? = null
 
+    private var started = false
+
+    /**
+     * Idempotent. The screen can be re-entered, and starting a second server left the page on
+     * one origin with its assets on another, which cross-origin isolation correctly refuses.
+     */
     fun start() {
+        if (started) return
+        started = true
         observeLifecycle()
         scope.launch {
             runCatching { server.start() }
@@ -74,7 +92,8 @@ class VmController(
                 if (_state.value is VmState.Running) {
                     intendedSuspendReason = SuspendReason.BACKGROUNDED
                     scope.launch {
-                        runCatching { bridge.snapshot() }.onSuccess { lastSnapshot = it }
+                        // Persisted, not just held: on iOS the process itself may not survive.
+                        runCatching { snapshotNow() }
                         bridge.pause()
                         _state.value = VmState.Suspended(SuspendReason.BACKGROUNDED)
                     }
@@ -103,20 +122,58 @@ class VmController(
 
     /** Offered after WebContent dies: the page is gone, so the guest is rebuilt from state. */
     suspend fun restoreLastSnapshot(): Boolean {
-        val snapshot = lastSnapshot ?: return false
-        val serverOrigin = origin ?: return false
-        runCatching {
-            bridge.boot(this.spec, serverOrigin)
-            bridge.restore(snapshot)
-        }.onFailure {
-            _state.value = VmState.Halted(it.message ?: "RESTORE FAILED")
-            return false
-        }
-        _state.value = VmState.Running(since = nowInstant())
-        return true
+        val entry = lastSnapshotEntry ?: snapshots.latest(spec.id) ?: return false
+        applyState(entry)
+        return _state.value is VmState.Running
     }
 
-    val canRestore: Boolean get() = lastSnapshot != null
+    val canRestore: Boolean
+        get() = lastSnapshotEntry != null || snapshots.latest(spec.id) != null
+
+    fun savedSnapshots(): List<SnapshotEntry> = snapshots.list(spec.id)
+
+    fun thumbnailOf(entry: SnapshotEntry): ByteArray? =
+        runCatching { snapshots.readThumbnail(entry) }.getOrNull()
+
+    /**
+     * Fire and forget entry points for the UI. A screen's `rememberCoroutineScope` dies the
+     * moment it is navigated away from, which is exactly when a restore is asked for, so this
+     * work belongs to the controller's own scope.
+     */
+    fun requestRestore(entry: SnapshotEntry) = scope.launch { applyState(entry) }
+
+    fun requestRestoreLatest() = scope.launch { restoreLastSnapshot() }
+
+    fun requestSnapshot() = scope.launch { runCatching { snapshotNow() } }
+
+    /**
+     * Restoring into a live machine is not the same operation as cold starting into a saved
+     * state: booting a second machine into the same page leaves two of them fighting over the
+     * screen. Either way the state travels over the loopback server, because a ten megabyte
+     * base64 string does not survive the JS bridge.
+     */
+    private suspend fun applyState(entry: SnapshotEntry) {
+        val serverOrigin = origin ?: return
+        val path = snapshots.serverPathOf(entry)
+        val alreadyRunning = runCatching { bridge.hasMachine() }.getOrDefault(false)
+        runCatching {
+            if (alreadyRunning) {
+                if (!bridge.restoreFrom(serverOrigin, path)) error("STATE FETCH FAILED")
+            } else {
+                bridge.bootWithState(spec, serverOrigin, path)
+            }
+        }.onSuccess {
+            intendedSuspendReason = null
+            lastSnapshotEntry = entry
+            _state.value = VmState.Running(since = nowInstant())
+        }.onFailure { failure ->
+            val message = failure.message ?: "RESTORE FAILED"
+            appendLog(":: RESTORE FAILED: $message")
+            _state.value = VmState.Halted(message)
+        }
+    }
+
+    fun delete(entry: SnapshotEntry) = snapshots.delete(entry)
 
     private fun collectEvents() {
         scope.launch {
@@ -192,12 +249,22 @@ class VmController(
 
     suspend fun screenshot(): ByteArray? = bridge.screenshot()
 
-    suspend fun snapshotNow(): ByteArray = bridge.snapshot().also { lastSnapshot = it }
+    /** Saves state plus a framebuffer thumbnail, then trims the machine's history. */
+    suspend fun snapshotNow(): SnapshotEntry {
+        val state = bridge.snapshot()
+        val thumbnail = runCatching { bridge.screenshot() }.getOrNull()
+        val entry = snapshots.save(spec.id, state, thumbnail)
+        lastSnapshotEntry = entry
+        snapshots.prune(spec.id)
+        return entry
+    }
 
     fun halt() {
+        started = false
         _state.value = VmState.Halted(error = null)
         lifecycle.dispose()
         server.stop()
+        scope.cancel()
     }
 
     private fun appendLog(line: String) {

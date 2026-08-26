@@ -22,6 +22,7 @@ import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
 import com.umain.draugr.ui.screens.SelfTestScreen
+import com.umain.draugr.ui.screens.SnapshotScreen
 import com.umain.draugr.ui.screens.VmScreen
 import com.umain.draugr.vm.VmController
 import kotlinx.coroutines.launch
@@ -34,6 +35,18 @@ private sealed interface Route {
     data object SelfTest : Route
     data class Detail(val spec: MachineSpec) : Route
     data class Vm(val spec: MachineSpec) : Route
+    data class Snapshots(val spec: MachineSpec) : Route
+}
+
+/**
+ * One controller per machine for the lifetime of the app session, so opening the state list and
+ * coming back does not tear down a running guest.
+ */
+private val controllers = mutableMapOf<String, VmController>()
+
+@Composable
+private fun rememberVmController(spec: MachineSpec): VmController = remember(spec.id) {
+    controllers.getOrPut(spec.id) { VmController(spec = spec) }
 }
 
 @Composable
@@ -83,16 +96,41 @@ fun DraugrApp() {
 
                     is Route.Vm -> {
                         val scope = rememberCoroutineScope()
-                        val controller = remember(current.spec.id) {
-                            VmController(spec = current.spec, scope = scope)
-                        }
+                        // Kept across the snapshot screen so the guest is not thrown away by a
+                        // trip to the state list.
+                        val controller = rememberVmController(current.spec)
                         LaunchedEffect(controller) { controller.start() }
                         VmScreen(
                             spec = current.spec,
                             controller = controller,
-                            onSnapshot = { scope.launch { runCatching { controller.snapshotNow() } } },
-                            onRestore = { scope.launch { controller.restoreLastSnapshot() } },
-                            onExit = { route = Route.Catalog },
+                            onSnapshot = { controller.requestSnapshot() },
+                            onRestore = { controller.requestRestoreLatest() },
+                            onOpenSnapshots = { route = Route.Snapshots(current.spec) },
+                            onExit = {
+                                controllers.remove(current.spec.id)
+                                route = Route.Catalog
+                            },
+                        )
+                    }
+
+                    is Route.Snapshots -> {
+                        val controller = rememberVmController(current.spec)
+                        var entries by remember(current.spec.id) {
+                            mutableStateOf(controller.savedSnapshots())
+                        }
+                        SnapshotScreen(
+                            spec = current.spec,
+                            entries = entries,
+                            thumbnailOf = { controller.thumbnailOf(it) },
+                            onRestore = { entry ->
+                                controller.requestRestore(entry)
+                                route = Route.Vm(current.spec)
+                            },
+                            onDelete = { entry ->
+                                controller.delete(entry)
+                                entries = controller.savedSnapshots()
+                            },
+                            onBack = { route = Route.Vm(current.spec) },
                         )
                     }
 
