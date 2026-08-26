@@ -176,6 +176,9 @@
       screen_container: document.getElementById('screen_container'),
       autostart: true,
       disable_speaker: true,
+      // Guest networking, only when the app supplies a relay. Without it the NE2000 has no peer
+      // and the guest stays offline, which is the default.
+      network_relay_url: config.networkRelayUrl || undefined,
       // Range requests keep a large image out of RAM: v86 asks for the blocks it needs.
       // async: true is what turns a URL into a block device instead of a full download.
       bios: config.bios ? { url: config.bios } : undefined,
