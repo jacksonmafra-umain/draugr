@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,7 +87,10 @@ fun CatalogScreen(
                 onSelect = { filter = it },
                 modifier = Modifier.padding(vertical = 16.dp),
             )
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
+            ) {
                 itemsIndexed(visible, key = { _, spec -> spec.id }) { index, spec ->
                     MachineRow(
                         index = index + 1,
@@ -95,7 +99,6 @@ fun CatalogScreen(
                         onInspect = { onInspect(spec) },
                     )
                 }
-                item { Text(text = "", modifier = Modifier.padding(bottom = 24.dp)) }
             }
         }
     }
