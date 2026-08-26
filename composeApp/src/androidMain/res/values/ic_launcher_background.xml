@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app is black on purpose; the launcher mask should not introduce another colour. -->
+    <color name="ic_launcher_background">#FF000000</color>
+</resources>
