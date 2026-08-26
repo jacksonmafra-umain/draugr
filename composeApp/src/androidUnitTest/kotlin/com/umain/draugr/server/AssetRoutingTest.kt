@@ -102,6 +102,40 @@ class AssetRoutingTest {
     }
 
     @Test
+    fun serves_a_payload_larger_than_one_chunk_intact() = runTest {
+        // A 64KB chunking bug only shows up above the chunk size, which is why this is 300KB.
+        val large = ByteArray(300_000) { (it % 253).toByte() }
+        testApplication {
+            application {
+                draugrAssetModule(token, BundledAssetProvider { if (it == "big.js") large else null })
+            }
+            val response = client.get("/$token/big.js")
+            assertEquals(HttpStatusCode.OK, response.status)
+            val body = response.bodyAsBytes()
+            assertEquals(large.size, body.size)
+            assertEquals(large.last(), body.last())
+        }
+    }
+
+    @Test
+    fun slices_a_range_that_spans_chunks() = runTest {
+        val large = ByteArray(300_000) { (it % 253).toByte() }
+        testApplication {
+            application {
+                draugrAssetModule(token, BundledAssetProvider { if (it == "big.js") large else null })
+            }
+            val response = client.get("/$token/big.js") {
+                header(HttpHeaders.Range, "bytes=1000-200999")
+            }
+            assertEquals(HttpStatusCode.PartialContent, response.status)
+            val body = response.bodyAsBytes()
+            assertEquals(200_000, body.size)
+            assertEquals(large[1000], body.first())
+            assertEquals(large[200_999], body.last())
+        }
+    }
+
+    @Test
     fun the_wrong_token_sees_nothing() = runTest {
         testApplication {
             application { draugrAssetModule(token, fakeProvider()) }
