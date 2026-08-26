@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +22,8 @@ import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
 import com.umain.draugr.ui.screens.MachineDetailScreen
 import com.umain.draugr.ui.screens.SelfTestScreen
+import com.umain.draugr.ui.screens.VmScreen
+import com.umain.draugr.vm.VmController
 import com.umain.draugr.ui.theme.DangerText
 import com.umain.draugr.ui.theme.DraugrTheme
 import com.umain.draugr.ui.theme.MutedText
@@ -29,6 +32,7 @@ private sealed interface Route {
     data object Catalog : Route
     data object SelfTest : Route
     data class Detail(val spec: MachineSpec) : Route
+    data class Vm(val spec: MachineSpec) : Route
 }
 
 @Composable
@@ -69,17 +73,31 @@ fun DraugrApp() {
                 else -> when (val current = route) {
                     Route.Catalog -> CatalogScreen(
                         machines = loaded,
-                        onBoot = { route = Route.Detail(it) },
+                        onBoot = { route = Route.Vm(it) },
                         onInspect = { route = Route.Detail(it) },
                         onSelfTest = { route = Route.SelfTest },
                     )
 
                     Route.SelfTest -> SelfTestScreen(onBack = { route = Route.Catalog })
 
+                    is Route.Vm -> {
+                        val scope = rememberCoroutineScope()
+                        val controller = remember(current.spec.id) {
+                            VmController(spec = current.spec, scope = scope)
+                        }
+                        LaunchedEffect(controller) { controller.start() }
+                        VmScreen(
+                            spec = current.spec,
+                            controller = controller,
+                            onSnapshot = {},
+                            onExit = { route = Route.Catalog },
+                        )
+                    }
+
                     is Route.Detail -> MachineDetailScreen(
                         spec = current.spec,
                         fetchProgress = null,
-                        onSummon = {},
+                        onSummon = { route = Route.Vm(current.spec) },
                         onSideload = {},
                         onBack = { route = Route.Catalog },
                     )
