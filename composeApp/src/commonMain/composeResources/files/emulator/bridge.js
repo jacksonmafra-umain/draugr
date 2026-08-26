@@ -255,6 +255,39 @@
     engines[name] = factory;
   };
 
+  // Shims emit through the same channel as the built-in engine.
+  window.DRAUGR_EMIT = emit;
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var element = document.createElement('script');
+      element.src = src;
+      element.onload = function () { resolve(); };
+      element.onerror = function () { reject(new Error('cannot load ' + src)); };
+      document.head.appendChild(element);
+    });
+  }
+
+  /**
+   * Engine B is a local build, not a vendored artifact, so it may simply be absent. Load it on
+   * first use and say plainly what to run when it is missing.
+   */
+  function ensureEngine(name) {
+    if (engines[name]) return Promise.resolve(engines[name]);
+    if (name !== 'tinyemu') return Promise.reject(new Error('unknown engine: ' + name));
+    return loadScript('tinyemu/tinyemu64.js')
+      .then(function () { return loadScript('tinyemu-shim.js'); })
+      .then(function () {
+        if (!engines[name]) {
+          throw new Error('engine not built: run emulator/build-tinyemu.sh');
+        }
+        return engines[name];
+      })
+      .catch(function () {
+        throw new Error('engine not built: run emulator/build-tinyemu.sh');
+      });
+  }
+
   var active = null;
 
   window.DRAUGR = {
@@ -267,23 +300,20 @@
     },
 
     boot: function (config) {
-      try {
-        // Booting twice would leave two machines fighting over the same screen.
-        if (active) {
-          fail('boot', new Error('a machine is already running'));
-          return;
-        }
-        var name = (config.engine || 'v86').toLowerCase();
-        var Engine = engines[name];
-        if (!Engine) {
-          fail('boot', new Error('unknown engine: ' + name));
-          return;
-        }
-        active = new Engine();
-        active.boot(config);
-      } catch (error) {
-        fail('boot', error);
+      // Booting twice would leave two machines fighting over the same screen.
+      if (active) {
+        fail('boot', new Error('a machine is already running'));
+        return;
       }
+      var name = (config.engine || 'v86').toLowerCase();
+      ensureEngine(name)
+        .then(function (Engine) {
+          active = new Engine();
+          active.boot(config);
+        })
+        .catch(function (error) {
+          fail('boot', error);
+        });
     },
 
     /** True once a machine exists in this page, which decides restore versus cold boot. */
