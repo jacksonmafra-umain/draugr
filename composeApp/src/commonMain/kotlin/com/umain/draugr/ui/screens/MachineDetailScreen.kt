@@ -12,10 +12,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.catalog.formatBytes
+import com.umain.draugr.storage.SideloadStore
+import com.umain.draugr.storage.SideloadValidation
+import com.umain.draugr.storage.rememberImagePicker
 import com.umain.draugr.ui.components.BracketPanel
 import com.umain.draugr.ui.components.GlitchText
 import com.umain.draugr.ui.components.PanelState
@@ -31,10 +38,32 @@ fun MachineDetailScreen(
     spec: MachineSpec,
     fetchProgress: Float?,
     onSummon: () -> Unit,
-    onSideload: () -> Unit,
+    onSideloaded: (MachineSpec) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val sideload = remember { SideloadStore() }
+    var picking by remember { mutableStateOf(false) }
+    var validation by remember(spec.id) {
+        mutableStateOf<SideloadValidation?>(null)
+    }
+    val pickImage = rememberImagePicker(machineId = spec.id) { picked ->
+        picking = false
+        if (picked == null) return@rememberImagePicker
+        val image = sideload.imageFor(spec.id)
+        val result = sideload.validate(spec, image)
+        validation = result
+        if (result is SideloadValidation.Ok && image != null) {
+            onSideloaded(
+                spec.copy(
+                    bundled = true,
+                    sizeBytes = image.sizeBytes,
+                    assets = spec.assets.copy(hda = sideload.serverPathOf(image)),
+                    note = "SIDELOADED: ${image.fileName}",
+                ),
+            )
+        }
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -129,11 +158,21 @@ fun MachineDetailScreen(
                     color = MutedText,
                 )
                 Text(
-                    text = ">> SIDELOAD IMAGE",
+                    text = if (picking) ":: COPYING IMAGE" else ">> SIDELOAD IMAGE",
                     style = MaterialTheme.typography.titleMedium,
                     color = SecondaryText,
-                    modifier = Modifier.clickable { onSideload() },
+                    modifier = Modifier.clickable {
+                        picking = true
+                        pickImage()
+                    },
                 )
+                validation?.let { result ->
+                    Text(
+                        text = ":: ${result.message}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (result is SideloadValidation.Ok) AccentText else DangerText,
+                    )
+                }
             }
         }
     }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.umain.draugr.catalog.CatalogRepository
+import com.umain.draugr.storage.SideloadStore
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.ui.components.scanlineOverlay
 import com.umain.draugr.ui.screens.CatalogScreen
@@ -56,7 +57,7 @@ fun DraugrApp() {
     var route by remember { mutableStateOf<Route>(Route.Catalog) }
 
     LaunchedEffect(Unit) {
-        runCatching { CatalogRepository().load() }
+        runCatching { CatalogRepository(sideload = SideloadStore()).load() }
             .onSuccess { machines = it.machines }
             .onFailure { failure = it.message ?: "CATALOG UNREADABLE" }
     }
@@ -138,7 +139,12 @@ fun DraugrApp() {
                         spec = current.spec,
                         fetchProgress = null,
                         onSummon = { route = Route.Vm(current.spec) },
-                        onSideload = {},
+                        onSideloaded = { updated ->
+                            // The machine is bootable now, so the catalog entry has to change
+                            // with it rather than staying dimmed until a restart.
+                            machines = loaded.map { if (it.id == updated.id) updated else it }
+                            route = Route.Detail(updated)
+                        },
                         onBack = { route = Route.Catalog },
                     )
                 }
