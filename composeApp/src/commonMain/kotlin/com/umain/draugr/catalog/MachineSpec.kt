@@ -53,7 +53,12 @@ data class MachineAssets(
     val cdrom: String? = null,
     val initrd: String? = null,
     val stateImage: String? = null,
-)
+) {
+    /** Asset paths that live under the sideload mount, for a bring-your-own-files machine. */
+    fun sideloadPaths(): List<String> =
+        listOfNotNull(kernel, bios, vgabios, hda, fda, cdrom, initrd, stateImage)
+            .filter { it.startsWith("sideload/") }
+}
 
 @Serializable
 data class MachineSpec(
@@ -67,6 +72,8 @@ data class MachineSpec(
     val assets: MachineAssets,
     val sizeBytes: Long,
     val bundled: Boolean,
+    /** Kernel command line, when the machine boots a kernel plus initrd rather than a disk. */
+    val cmdline: String? = null,
     val note: String? = null,
     /** SHA-256 of the primary disk image, when one is expected for validation. */
     val sha256: String? = null,

@@ -58,6 +58,12 @@ class SideloadStore(
     fun serverPathOf(image: SideloadedImage): String =
         "sideload/${image.machineId}/${image.fileName}"
 
+    /** Whether a server-relative `sideload/...` path exists on disk. */
+    fun hasServerAsset(serverPath: String): Boolean {
+        val relative = serverPath.removePrefix("sideload/")
+        return fileSystem.exists(root / relative)
+    }
+
     fun register(image: SideloadedImage) {
         val current = readManifest().images.filterNot { it.machineId == image.machineId }
         writeManifest(SideloadManifest(current + image))
