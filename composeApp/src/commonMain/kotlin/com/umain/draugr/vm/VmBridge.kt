@@ -14,6 +14,18 @@ expect class VmBridge() {
     fun prepare(hostUrl: String)
 
     suspend fun boot(spec: MachineSpec, serverOrigin: String)
+
+    /**
+     * Cold start into a saved state served at [statePath], relative to the server root. States
+     * are megabytes, so they travel over the loopback server, not through the JS bridge.
+     */
+    suspend fun bootWithState(spec: MachineSpec, serverOrigin: String, statePath: String)
+
+    /** Restores into the machine already in the page, from the same server-relative path. */
+    suspend fun restoreFrom(serverOrigin: String, statePath: String): Boolean
+
+    /** Whether the page already holds a machine, which decides restore versus cold boot. */
+    suspend fun hasMachine(): Boolean
     suspend fun sendKeys(codes: IntArray)
     suspend fun sendText(text: String)
     suspend fun pause()
