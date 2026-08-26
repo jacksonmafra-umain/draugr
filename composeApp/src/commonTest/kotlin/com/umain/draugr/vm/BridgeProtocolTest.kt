@@ -121,9 +121,19 @@ class BridgeProtocolTest {
     }
 
     @Test
-    fun geometry_only_letterboxes_graphical_guests() {
-        assertNull(Geometry(80, 25, graphical = false).aspectRatio)
+    fun graphical_geometry_uses_its_pixel_ratio() {
         assertEquals(640f / 480f, Geometry(640, 480, graphical = true).aspectRatio)
+    }
+
+    @Test
+    fun text_geometry_accounts_for_glyph_shape() {
+        // 80x25 characters is a wide terminal, not a square: 80 * 0.6 / 25.
+        assertEquals(1.92f, Geometry(80, 25, graphical = false).aspectRatio)
+    }
+
+    @Test
+    fun an_unknown_geometry_has_no_ratio_and_a_placeholder_label() {
+        assertNull(Geometry.UNKNOWN.aspectRatio)
         assertEquals("----x----", Geometry.UNKNOWN.label)
         assertEquals("80x25", Geometry(80, 25, graphical = false).label)
     }
