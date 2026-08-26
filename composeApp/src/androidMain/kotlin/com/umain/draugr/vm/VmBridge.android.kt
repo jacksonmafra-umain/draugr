@@ -96,6 +96,30 @@ actual class VmBridge actual constructor() {
         evaluate(BridgeProtocol.bootCall(spec, serverOrigin))
     }
 
+    actual suspend fun bootWithState(
+        spec: MachineSpec,
+        serverOrigin: String,
+        statePath: String,
+    ) {
+        ready.first { it }
+        val config = BridgeProtocol.bootConfig(spec, serverOrigin)
+        evaluate("window.DRAUGR.bootWithStateUrl($config, \"$serverOrigin/$statePath\");")
+    }
+
+    actual suspend fun restoreFrom(serverOrigin: String, statePath: String): Boolean {
+        if (webView == null) return false
+        return request("window.DRAUGR.restoreFromUrl(\"$serverOrigin/$statePath\")") == "ok"
+    }
+
+    /**
+     * Answers false rather than waiting when no view is attached: the state list has no surface,
+     * and a request with nowhere to go would never be replied to.
+     */
+    actual suspend fun hasMachine(): Boolean {
+        if (webView == null) return false
+        return request("window.DRAUGR.hasMachine()") == "true"
+    }
+
     actual suspend fun sendKeys(codes: IntArray) = evaluate(BridgeProtocol.sendKeysCall(codes))
 
     actual suspend fun sendText(text: String) = evaluate(BridgeProtocol.sendTextCall(text))
