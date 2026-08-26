@@ -1,0 +1,5 @@
+730d3e4e4bd1d9c7ede4a4995f23da87261a723b3524da9a75c90e6e0610f46b  composeApp/src/commonMain/composeResources/files/emulator/v86/libv86.js
+6121632f6d657d03f2286341ed87edcafd4945fa65ae765b4c7fd0bf2554a9c7  composeApp/src/commonMain/composeResources/files/emulator/v86/v86.wasm
+6a79b9b0ba69dbfdcfdf2ded7fdf1048c0813ab7e4f6bf602949b13d058fe97a  composeApp/src/commonMain/composeResources/files/emulator/v86/v86-fallback.wasm
+73e3f359102e3a9982c35fce98eb7cd08f18303ac7f1ba6ebfbe6cdc1c244d98  composeApp/src/commonMain/composeResources/files/emulator/bios/seabios.bin
+a4bc0d80cc3ca028c73dafa8fee396b8d054ce87ebd8abfbd31b06b437607880  composeApp/src/commonMain/composeResources/files/emulator/bios/vgabios.bin
