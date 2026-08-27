@@ -14,3 +14,11 @@ expect class HostLifecycle() {
  * enforcing. iOS WebContent gets jetsam-killed well before a large guest finishes booting.
  */
 expect fun platformMemoryCeilingMb(): Int?
+
+/**
+ * Whether backgrounding puts the guest at risk and so warrants an auto-snapshot. True on iOS,
+ * where WebContent is killed under memory pressure; false on Android, where the WebView survives
+ * backgrounding and reading a whole guest's RAM into a snapshot only invites the OS to kill the
+ * app that is trying to save itself.
+ */
+expect fun platformSnapshotsOnBackground(): Boolean
