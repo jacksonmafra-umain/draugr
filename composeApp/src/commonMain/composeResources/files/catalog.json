@@ -130,6 +130,25 @@
       "note": "Long boot. Watch the serial log rather than the framebuffer to tell whether it is progressing."
     },
     {
+      "id": "alpine-x86-net",
+      "cpu": "x86",
+      "os": "Alpine Net Probe",
+      "ui": "CONSOLE",
+      "engine": "V86",
+      "memMb": 128,
+      "assets": {
+        "bios": "bios/seabios.bin",
+        "vgabios": "bios/vgabios.bin",
+        "kernel": "sideload/alpine-x86-net/vmlinuz-lts",
+        "initrd": "sideload/alpine-x86-net/initramfs-lts",
+        "hda": "sideload/alpine-x86-net/rootfs.ext4"
+      },
+      "cmdline": "console=ttyS0 console=tty0 nomodeset root=/dev/sda modules=ext4 rw",
+      "sizeBytes": 536870912,
+      "bundled": false,
+      "note": "A small console-only Alpine x86 build whose only job is to prove networking: bring up eth0 by DHCP through a configured relay and reach the internet with busybox udhcpc, nslookup and wget. Not bundled: build it with emulator/build-net-image.sh and sideload it. Small on purpose, so it boots inside a mobile WebView's memory budget. No network unless a relay is configured."
+    },
+    {
       "id": "alpine-x86-security",
       "cpu": "x86",
       "os": "Alpine Security Console",
