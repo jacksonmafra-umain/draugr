@@ -22,11 +22,14 @@ node tools/network-relay.mjs                 # ws://127.0.0.1:4555
 node tools/network-relay.mjs --port 4555 --host 0.0.0.0
 ```
 
-Needs only Node 22+ (built-in crypto and net; no npm install). It speaks the raw-Ethernet-frame
-WebSocket format v86 uses. **The shipped script is deliberately minimal**: it accepts the guest,
-logs frames, and keeps the link up, so the wiring can be seen end to end. It does not yet NAT
-frames to real sockets — for actual routing, point `network_relay_url` at v86's own
-`websockproxy` against a TAP device, which is a full gateway. The script's header says so too.
+Needs only Node 22+ (built-in `net`, `dgram`, `crypto`; no npm install). It is a **WISP** relay
+(https://github.com/MercuryWorkshop/wisp-protocol): v86 speaks WISP over the WebSocket, running
+its own TCP/IP stack in the browser — so it answers the guest's DHCP and ARP itself — and
+forwards each flow as a WISP stream. The relay opens the matching real socket with `node:net`
+(TCP) or `node:dgram` (UDP, so the guest's DNS works) and pipes bytes both ways. No TAP, no root.
+
+The app hands v86 a `wisp://` (or `wisps://`) URL derived from the `ws://`/`wss://` you enter,
+because v86 selects its backend from the scheme.
 
 ## Turning it on in the app
 
@@ -41,19 +44,18 @@ no network.
 
 ## What is verified, and what is not
 
-- The relay script runs, completes the WebSocket handshake, and logs guest frames. Verified.
-- The app persists the relay URL, shows the on/offline state, and threads the URL into the v86
-  boot config. Verified on a Galaxy A34.
-- A guest actually routing traffic through the relay to a real network is **not** verified end
-  to end. The security console now boots to Alpine userspace on-device (see `SECURITY-IMAGE.md`),
-  but confirming DHCP and an outbound scan through the relay needs an uninterrupted run against a
-  relay that does real routing — the shipped relay logs frames rather than NATs them. FreeDOS
-  boots but has no TCP/IP stack to drive the NIC.
-
-So the honest state: every piece is built and tested in isolation — the relay handshake, the
-settings wiring, and now a guest that boots far enough to bring up a NIC. A full live scan is the
-remaining step, and it wants the routing relay (v86's websockproxy) and a run that is not
-interrupted by the test phone being picked up.
+- **The relay routes real traffic.** Verified on loopback: a WISP TCP stream to `example.org:80`
+  returned `HTTP/1.1 200 OK`, and a WISP UDP stream to `8.8.8.8:53` returned a DNS answer. So both
+  TCP and DNS work through it.
+- The app persists the relay URL, shows the on/offline state, and hands v86 the `wisp://` form.
+  Verified on a Galaxy A34, with unit tests over the scheme mapping.
+- The security console boots to a root shell on-device and `nmap` runs against `127.0.0.1`
+  (see `SECURITY-IMAGE.md`).
+- **Not yet confirmed:** the full phone → relay → internet path from inside the guest. The guest
+  takes several minutes to reach its `udhcpc` stage, the test phone's Wi-Fi had a manual HTTP
+  proxy set, and the run kept being interrupted by the phone being picked up (which backgrounds
+  the app and pauses the guest). The mechanism is proven; the on-device end-to-end run is the
+  open item.
 
 ## Only what you are authorised to reach
 
