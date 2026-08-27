@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The embedded asset server is the only network peer this app ever talks to. -->
+<!--
+  By default the only peer is the embedded asset server on 127.0.0.1, and the app makes no
+  outbound requests. Cleartext is permitted because guest networking, when the user opts in,
+  points v86 at a ws:// relay on their LAN (see emulator/NETWORK-RELAY.md) — a non-loopback
+  cleartext WebSocket the loopback-only rule would otherwise block. Nothing connects outbound
+  unless a relay URL is set in Settings.
+-->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">localhost</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
