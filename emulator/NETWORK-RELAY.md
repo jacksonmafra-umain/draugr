@@ -31,6 +31,10 @@ forwards each flow as a WISP stream. The relay opens the matching real socket wi
 The app hands v86 a `wisp://` (or `wisps://`) URL derived from the `ws://`/`wss://` you enter,
 because v86 selects its backend from the scheme.
 
+Android note: a `ws://` relay is a cleartext WebSocket to a LAN host, which the app's
+network security config must permit. It does — cleartext is allowed precisely so a
+configured relay can be reached; nothing connects outbound unless a relay URL is set.
+
 ## Turning it on in the app
 
 Settings → **NETWORK**. Enter the relay's `ws://` or `wss://` URL (the phone reaches your
