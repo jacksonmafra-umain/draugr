@@ -18,6 +18,12 @@ data class Settings(
      * URL routes guest traffic through that relay, and the app is then no longer offline-only.
      */
     val networkRelayUrl: String = "",
+    /**
+     * Auto-snapshot the guest when the app backgrounds. Null follows the platform default (on
+     * for iOS, off for Android). Reading a whole guest's RAM on background is what pressures a
+     * memory-tight device into killing the app mid-boot, so Android leaves it off.
+     */
+    val autoSnapshotOnBackground: Boolean? = null,
 ) {
     val networkEnabled: Boolean get() = networkRelayUrl.isNotBlank()
 }
