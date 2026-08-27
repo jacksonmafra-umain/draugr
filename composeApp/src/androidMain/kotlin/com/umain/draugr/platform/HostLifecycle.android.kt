@@ -32,3 +32,5 @@ actual class HostLifecycle actual constructor() {
 
 /** Android WebView survives backgrounding, and `largeHeap` covers the bundled guests. */
 actual fun platformMemoryCeilingMb(): Int? = null
+
+actual fun platformSnapshotsOnBackground(): Boolean = false

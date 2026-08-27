@@ -3,6 +3,7 @@ package com.umain.draugr.vm
 import com.umain.draugr.catalog.MachineSpec
 import com.umain.draugr.platform.HostLifecycle
 import com.umain.draugr.platform.platformMemoryCeilingMb
+import com.umain.draugr.platform.platformSnapshotsOnBackground
 import com.umain.draugr.server.AssetServer
 import com.umain.draugr.catalog.Engine
 import com.umain.draugr.server.GeneratedAssets
@@ -37,7 +38,14 @@ class VmController(
     private val snapshots: SnapshotStore = SnapshotStore(),
     /** WebSocket relay for guest networking, or blank for no network. */
     private val networkRelayUrl: String = "",
+    /** Whether to snapshot on background; null follows the platform default. */
+    autoSnapshotOnBackground: Boolean? = null,
 ) {
+    // On Android this is false: snapshotting a 128MB guest on background spiked memory and got
+    // the app killed mid-boot. iOS keeps it on, because WebContent may not survive at all.
+    private val snapshotOnBackground: Boolean =
+        autoSnapshotOnBackground ?: platformSnapshotsOnBackground()
+
     /**
      * Asking for more memory than the platform tolerates does not fail gracefully: on iOS the
      * whole web content process is killed mid-boot. Clamp instead.
@@ -126,8 +134,10 @@ class VmController(
                 if (_state.value is VmState.Running) {
                     intendedSuspendReason = SuspendReason.BACKGROUNDED
                     scope.launch {
-                        // Persisted, not just held: on iOS the process itself may not survive.
-                        runCatching { snapshotNow() }
+                        // The snapshot is only worth its memory cost where the host process may
+                        // be reclaimed (iOS). Elsewhere, just pause: reading the whole guest's
+                        // RAM here is what got the app killed on a memory-tight phone mid-boot.
+                        if (snapshotOnBackground) runCatching { snapshotNow() }
                         bridge.pause()
                         _state.value = VmState.Suspended(SuspendReason.BACKGROUNDED)
                     }

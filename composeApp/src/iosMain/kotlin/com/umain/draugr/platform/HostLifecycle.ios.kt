@@ -38,3 +38,5 @@ actual class HostLifecycle actual constructor() {
 
 /** WebContent is jetsam bait above this, so a first pass refuses to ask for more. */
 actual fun platformMemoryCeilingMb(): Int? = MachineSpec.IOS_MEM_BUDGET_MB
+
+actual fun platformSnapshotsOnBackground(): Boolean = true

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.umain.draugr.host.hostWarning
+import com.umain.draugr.platform.platformSnapshotsOnBackground
 import com.umain.draugr.storage.Settings
 import com.umain.draugr.ui.components.BracketPanel
 import com.umain.draugr.ui.components.GlitchText
@@ -75,6 +76,17 @@ fun SettingsScreen(
                     settings.copy(
                         bootLogExpandedByDefault = !settings.bootLogExpandedByDefault,
                     ),
+                )
+            }
+            val snapshotOnBackground =
+                settings.autoSnapshotOnBackground ?: platformSnapshotsOnBackground()
+            Toggle(
+                label = "SNAPSHOT ON BACKGROUND",
+                detail = "SAVES GUEST RAM WHEN LEAVING; HEAVY, CAN KILL A LONG BOOT",
+                enabled = snapshotOnBackground,
+            ) {
+                onSettingsChange(
+                    settings.copy(autoSnapshotOnBackground = !snapshotOnBackground),
                 )
             }
         }
