@@ -90,6 +90,20 @@ class TinyEmuConfigTest {
     }
 
     @Test
+    fun a_relay_url_is_handed_to_v86_as_a_wisp_scheme() {
+        val json = BridgeProtocol.bootConfig(buildroot, origin, networkRelayUrl = "ws://10.0.0.5:4555/")
+        assertTrue(json.contains("\"networkRelayUrl\":\"wisp://10.0.0.5:4555/\""), json)
+        val secure = BridgeProtocol.bootConfig(buildroot, origin, networkRelayUrl = "wss://relay.example/")
+        assertTrue(secure.contains("wisps://relay.example/"), secure)
+    }
+
+    @Test
+    fun no_relay_means_no_network_field() {
+        val json = BridgeProtocol.bootConfig(buildroot, origin, networkRelayUrl = "")
+        assertTrue(!json.contains("networkRelayUrl"), json)
+    }
+
+    @Test
     fun a_v86_machine_carries_no_tinyemu_fields() {
         val v86 = buildroot.copy(engine = Engine.V86)
         val json = BridgeProtocol.bootConfig(v86, origin)

@@ -47,7 +47,7 @@ object BridgeProtocol {
             url(spec.assets.cdrom)?.let { put("cdrom", it) }
             url(spec.assets.stateImage)?.let { put("stateImage", it) }
             spec.cmdline?.let { put("cmdline", it) }
-            networkRelayUrl?.takeIf { it.isNotBlank() }?.let { put("networkRelayUrl", it) }
+            networkRelayUrl?.takeIf { it.isNotBlank() }?.let { put("networkRelayUrl", toWispUrl(it)) }
         }.toString()
     }
 
@@ -131,6 +131,18 @@ object BridgeProtocol {
         val obj = runCatching { json.parseToJsonElement(raw) }.getOrNull() as? JsonObject
             ?: return false
         return obj["crossOriginIsolated"]?.jsonPrimitive?.booleanOrNull == true
+    }
+
+    /**
+     * v86 selects its network backend from the URL scheme. The relay speaks WISP over a plain
+     * WebSocket, so a ws:// the user typed becomes wisp:// and wss:// becomes wisps://. A URL
+     * already using a wisp scheme is left alone.
+     */
+    private fun toWispUrl(url: String): String = when {
+        url.startsWith("wisp://") || url.startsWith("wisps://") -> url
+        url.startsWith("wss://") -> "wisps://" + url.removePrefix("wss://")
+        url.startsWith("ws://") -> "wisp://" + url.removePrefix("ws://")
+        else -> url
     }
 
     private fun quote(value: String): String = buildString {
