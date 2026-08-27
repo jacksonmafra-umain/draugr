@@ -46,20 +46,45 @@ boot.
 The URL is stored like any other setting and survives a restart. Blank is the default and means
 no network.
 
+## A tiny image built to test exactly this
+
+`emulator/build-net-image.sh` builds `alpine-x86-net`, a console-only Alpine x86 guest carrying
+nothing but busybox — small on purpose so it boots inside a mobile WebView's memory budget. It
+brings up `eth0` by DHCP and, at boot, a `local.d` probe runs `udhcpc`, `nslookup` and
+`wget http://example.org/`, so the relay's own log is the evidence without any typing. Build and
+sideload it like the security image (`emulator/install-net-image.sh`), point the app at a relay,
+and boot it.
+
+Run the relay with `DRAUGR_WISP_DEBUG=1` to log every WISP frame the guest sends — invaluable for
+telling "the guest never tried" apart from "the relay dropped it".
+
+## The Android Wi-Fi proxy gotcha
+
+If the phone's Wi-Fi has a **manual HTTP proxy** set, the WebView honours it for LAN hosts and the
+relay WebSocket is dialled *through that proxy* — so a dead proxy silently stops the guest
+connecting, with nothing in the relay log. Either clear the proxy in Wi-Fi settings, or point it at
+a real pass-through. Symptom in `adb logcat`: `NetworkMonitor ... Probe failed ... connect to
+/<proxy-ip> (port <n>)`.
+
 ## What is verified, and what is not
 
 - **The relay routes real traffic.** Verified on loopback: a WISP TCP stream to `example.org:80`
   returned `HTTP/1.1 200 OK`, and a WISP UDP stream to `8.8.8.8:53` returned a DNS answer. So both
   TCP and DNS work through it.
-- The app persists the relay URL, shows the on/offline state, and hands v86 the `wisp://` form.
-  Verified on a Galaxy A34, with unit tests over the scheme mapping.
-- The security console boots to a root shell on-device and `nmap` runs against `127.0.0.1`
-  (see `SECURITY-IMAGE.md`).
-- **Not yet confirmed:** the full phone → relay → internet path from inside the guest. The guest
-  takes several minutes to reach its `udhcpc` stage, the test phone's Wi-Fi had a manual HTTP
-  proxy set, and the run kept being interrupted by the phone being picked up (which backgrounds
-  the app and pauses the guest). The mechanism is proven; the on-device end-to-end run is the
-  open item.
+- **On a physical Galaxy A34**, with the `alpine-x86-net` guest and a LAN relay: the guest boots to
+  a shell, v86 opens the WISP WebSocket to the relay, `udhcpc` obtains a lease and a default route
+  from v86's stack, and `nslookup example.org` returns live public addresses
+  (`172.66.157.237`, `104.20.26.136`, …). So the guest resolves real internet names on-device.
+- The app persists the relay URL, shows the on/offline state, and hands v86 the `wisp://` form,
+  with unit tests over the scheme mapping.
+- **Two on-device caveats, both about the phone, not the relay:**
+  - v86 answers the guest's DHCP/ARP and resolves DNS (over DoH) *itself* in the browser; only
+    the guest's own TCP/UDP flows cross the relay as WISP streams. So a successful `nslookup` proves
+    the guest reached the internet, but does not by itself exercise a relay *stream*.
+  - Capturing that outbound TCP stream on-device (the boot-time `wget`) is the open item: on the
+    test phone the WebView renderer is reclaimed under memory pressure ~3–4 min into the heavy boot,
+    before the probe fires. Freeing RAM lets the guest reach a shell (proven), but the crash is
+    non-deterministic. On a desktop browser, where v86 has full memory, this ceiling is absent.
 
 ## Only what you are authorised to reach
 

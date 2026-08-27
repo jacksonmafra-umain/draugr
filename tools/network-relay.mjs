@@ -35,6 +35,7 @@ const opt = (name, fallback) => {
 const PORT = parseInt(opt('--port', '4555'), 10);
 const HOST = opt('--host', '0.0.0.0');
 const BUFFER = 128; // CONTINUE window, in packets, per stream.
+const DEBUG = !!process.env.DRAUGR_WISP_DEBUG; // log every WISP frame the guest sends
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -121,7 +122,11 @@ class WispSession {
       if (!frame) break;
       this.buffer = this.buffer.subarray(frame.total);
       if (frame.opcode === 0x8) return this.destroy();
+      if (frame.opcode === 0x9) continue; // ping; ignore
       if (frame.opcode === 0x2 && frame.payload.length >= 5) this.onWisp(frame.payload);
+      else if (DEBUG) {
+        console.log(`[relay] ws frame opcode=0x${frame.opcode.toString(16)} len=${frame.payload.length}`);
+      }
     }
   }
 
@@ -129,6 +134,7 @@ class WispSession {
     const type = pkt[0];
     const streamId = pkt.readUInt32LE(1);
     const payload = pkt.subarray(5);
+    if (DEBUG) console.log(`[relay] wisp type=0x${type.toString(16)} stream=${streamId} len=${payload.length}`);
     if (type === 0x01) this.connect(streamId, payload);
     else if (type === 0x02) this.data(streamId, payload);
     else if (type === 0x04) this.closeStream(streamId, false);
