@@ -151,8 +151,14 @@ class WispSession {
     const tcp = net.connect({ host, port, lookup: dns.lookup });
     tcp.draugrKind = 'tcp';
     this.streams.set(streamId, tcp);
-    tcp.on('connect', () => this.sendContinue(streamId, BUFFER));
-    tcp.on('data', (d) => this.sendData(streamId, d));
+    tcp.on('connect', () => {
+      if (DEBUG) console.log(`[relay] stream ${streamId}: connected to ${host}:${port}`);
+      this.sendContinue(streamId, BUFFER);
+    });
+    tcp.on('data', (d) => {
+      if (DEBUG) console.log(`[relay] stream ${streamId}: <- ${d.length} bytes from ${host}`);
+      this.sendData(streamId, d);
+    });
     tcp.on('end', () => this.closeStream(streamId, true));
     tcp.on('error', () => this.sendClose(streamId, 0x03));
     tcp.on('close', () => this.closeStream(streamId, true));
