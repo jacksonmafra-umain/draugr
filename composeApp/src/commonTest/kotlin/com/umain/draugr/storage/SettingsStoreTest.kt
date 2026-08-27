@@ -27,6 +27,13 @@ class SettingsStoreTest {
     }
 
     @Test
+    fun auto_snapshot_defaults_to_the_platform_and_survives_a_reload() {
+        assertEquals(null, store().load().autoSnapshotOnBackground)
+        store().save(Settings(autoSnapshotOnBackground = false))
+        assertEquals(false, store().load().autoSnapshotOnBackground)
+    }
+
+    @Test
     fun the_zoom_cycle_wraps_back_to_fit() {
         assertEquals(1.25f, nextTerminalZoom(1f))
         assertEquals(1.5f, nextTerminalZoom(1.25f))

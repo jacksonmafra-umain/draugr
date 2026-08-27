@@ -53,10 +53,18 @@ private sealed interface Route {
 private val controllers = mutableMapOf<String, VmController>()
 
 @Composable
-private fun rememberVmController(spec: MachineSpec, networkRelayUrl: String): VmController =
+private fun rememberVmController(
+    spec: MachineSpec,
+    networkRelayUrl: String,
+    autoSnapshot: Boolean?,
+): VmController =
     remember(spec.id) {
         controllers.getOrPut(spec.id) {
-            VmController(spec = spec, networkRelayUrl = networkRelayUrl)
+            VmController(
+                spec = spec,
+                networkRelayUrl = networkRelayUrl,
+                autoSnapshotOnBackground = autoSnapshot,
+            )
         }
     }
 
@@ -145,7 +153,7 @@ fun DraugrApp() {
                         val scope = rememberCoroutineScope()
                         // Kept across the snapshot screen so the guest is not thrown away by a
                         // trip to the state list.
-                        val controller = rememberVmController(current.spec, settings.networkRelayUrl)
+                        val controller = rememberVmController(current.spec, settings.networkRelayUrl, settings.autoSnapshotOnBackground)
                         LaunchedEffect(controller) { controller.start() }
                         LaunchedEffect(controller, settings.terminalZoom) {
                             controller.setZoom(settings.terminalZoom)
@@ -169,7 +177,7 @@ fun DraugrApp() {
                     }
 
                     is Route.Snapshots -> {
-                        val controller = rememberVmController(current.spec, settings.networkRelayUrl)
+                        val controller = rememberVmController(current.spec, settings.networkRelayUrl, settings.autoSnapshotOnBackground)
                         var entries by remember(current.spec.id) {
                             mutableStateOf(controller.savedSnapshots())
                         }
